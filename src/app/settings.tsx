@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BackLink, PolicyFooter, Screen } from '@/components/screen/Screen';
@@ -48,7 +48,9 @@ import {
   withdraw,
   type SharingStatus,
 } from '@/features/sharing/sharing';
+import { haptic } from '@/lib/haptics';
 import { clearAll } from '@/lib/storage';
+import { useSimulatedFeed } from '@/features/density/useDensity';
 import { useTheme, useThemePreference, type ThemePreference } from '@/theme';
 
 const STATUS_COPY: Record<SharingStatus, { card: CardStatus; title: string; detail: string }> = {
@@ -84,6 +86,7 @@ export default function Settings() {
   const sharing = useSharing();
   const identity = useIdentity();
   const zones = usePrivateZones();
+  const simulated = useSimulatedFeed();
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -91,9 +94,35 @@ export default function Settings() {
     refreshOutstanding();
   }, []);
 
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const say = (m: string) => {
+    clearTimeout(toastTimer.current);
     setToast(m);
-    setTimeout(() => setToast(null), theme.motion.toastDuration);
+    toastTimer.current = setTimeout(() => setToast(null), theme.motion.toastDuration);
+  };
+
+  // fill-in: "Delete my data now" asks for a second tap within 5 s, so a stray
+  // tap cannot wipe the identity. The design shows a single button.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(
+    () => () => {
+      clearTimeout(toastTimer.current);
+      clearTimeout(confirmTimer.current);
+    },
+    [],
+  );
+  const onDeletePress = () => {
+    if (!confirmingDelete) {
+      haptic.warn();
+      setConfirmingDelete(true);
+      AccessibilityInfo.announceForAccessibility('Tap again to delete everything.');
+      confirmTimer.current = setTimeout(() => setConfirmingDelete(false), 5000);
+      return;
+    }
+    clearTimeout(confirmTimer.current);
+    setConfirmingDelete(false);
+    deleteData();
   };
 
   const status = consent.location ? sharing.status : 'off';
@@ -166,6 +195,7 @@ export default function Settings() {
       say('Couldn’t reach the server, so nothing was deleted yet. Try again when online.');
       return;
     }
+    haptic.success();
     resetSharing();
     clearPrivateZones();
     await clearAll();
@@ -253,11 +283,11 @@ export default function Settings() {
             onPress={rotate}
           />
           <Button
-            label="Delete my data now"
+            label={confirmingDelete ? 'Tap again to delete everything' : 'Delete my data now'}
             variant="danger"
             size="compact"
             disabled={busy}
-            onPress={deleteData}
+            onPress={onDeletePress}
           />
           <Button
             label="What my phone is sending"
@@ -272,6 +302,12 @@ export default function Settings() {
           Pulse {Constants.expoConfig?.version ?? ''} · Map data © OpenStreetMap contributors ·
           Tiles OpenFreeMap
         </Text>
+        {__DEV__ && (
+          // Design: "Simulated feed on." under the policy line (development builds only).
+          <Text variant="monoFootnote" color="faint" style={{ paddingTop: 6 }}>
+            Simulated feed {simulated ? 'on' : 'off'}.
+          </Text>
+        )}
       </Screen>
       {toast && <Toast message={toast} top={insets.top + 58} />}
     </View>
@@ -336,7 +372,10 @@ function AppearanceSection() {
               accessibilityState={{ checked: selected }}
               accessibilityLabel={o.label}
               accessibilityHint={o.detail}
-              onPress={() => setPreference(o.key)}
+              onPress={() => {
+                haptic.select();
+                setPreference(o.key);
+              }}
               style={({ pressed }) => ({
                 flexDirection: 'row',
                 alignItems: 'center',

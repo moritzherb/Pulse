@@ -28,6 +28,50 @@ const config: ExpoConfig = {
         'Your position is turned into a ~460 m area on your phone. Only that area is sent, and only while the app is open.',
       ITSAppUsesNonExemptEncryption: false,
     },
+    /**
+     * Apple privacy manifest. Must match docs/store-privacy.md and the App
+     * Store privacy label. Collected: coarse location (an H3 cell, ~460 m)
+     * and a random rotating user ID, both only while sharing, for app
+     * functionality, not linked to identity, no tracking.
+     */
+    privacyManifests: {
+      NSPrivacyTracking: false,
+      NSPrivacyTrackingDomains: [],
+      NSPrivacyCollectedDataTypes: [
+        {
+          NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeCoarseLocation',
+          NSPrivacyCollectedDataTypeLinked: false,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
+        },
+        {
+          NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeUserID',
+          NSPrivacyCollectedDataTypeLinked: false,
+          NSPrivacyCollectedDataTypeTracking: false,
+          NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
+        },
+      ],
+      // Required-reason APIs used by React Native and Expo modules, declared
+      // at app level as well for libraries that ship no manifest of their own.
+      NSPrivacyAccessedAPITypes: [
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryUserDefaults',
+          NSPrivacyAccessedAPITypeReasons: ['CA92.1'],
+        },
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryFileTimestamp',
+          NSPrivacyAccessedAPITypeReasons: ['C617.1'],
+        },
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategorySystemBootTime',
+          NSPrivacyAccessedAPITypeReasons: ['35F9.1'],
+        },
+        {
+          NSPrivacyAccessedAPIType: 'NSPrivacyAccessedAPICategoryDiskSpace',
+          NSPrivacyAccessedAPITypeReasons: ['E174.1'],
+        },
+      ],
+    },
   },
   android: {
     package: BUNDLE_ID,
@@ -37,8 +81,7 @@ const config: ExpoConfig = {
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
-    // Coarse + fine are both requested by expo-location; only foreground.
-    permissions: ['ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'],
+    // expo-location adds the foreground permissions; background is blocked.
     blockedPermissions: ['ACCESS_BACKGROUND_LOCATION'],
     predictiveBackGestureEnabled: false,
   },
@@ -51,7 +94,7 @@ const config: ExpoConfig = {
         image: './assets/splash-icon.png',
         imageWidth: 120,
         backgroundColor: '#FFFFFF',
-        dark: { image: './assets/splash-icon.png', backgroundColor: '#0B0B0C' },
+        dark: { image: './assets/splash-icon-dark.png', backgroundColor: '#0B0B0C' },
       },
     ],
     [
@@ -59,6 +102,11 @@ const config: ExpoConfig = {
       {
         locationWhenInUsePermission:
           'Your position is turned into a ~460 m area on your phone. Only that area is sent, and only while the app is open.',
+        // Never requested, so no usage strings for them in Info.plist.
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
+        locationFullAccuracyPermission: false,
         isIosBackgroundLocationEnabled: false,
         isAndroidBackgroundLocationEnabled: false,
         isAndroidForegroundServiceEnabled: false,

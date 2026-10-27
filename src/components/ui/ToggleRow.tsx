@@ -1,5 +1,6 @@
 import { Pressable, View } from 'react-native';
 
+import { haptic } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 
 import { Text } from './Text';
@@ -24,7 +25,10 @@ export function ToggleRow({ label, detail, stamp, value, onChange }: ToggleRowPr
       accessibilityLabel={label}
       accessibilityHint={detail}
       accessibilityState={{ checked: value }}
-      onPress={() => onChange(!value)}
+      onPress={() => {
+        haptic.select();
+        onChange(!value);
+      }}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'flex-start',

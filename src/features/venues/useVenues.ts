@@ -28,7 +28,7 @@ type Bounds = [west: number, south: number, east: number, north: number];
  * data via venues_in_bbox(). Simulated feed: the hotspots, as pins.
  */
 export function useVenues(bounds: Bounds | null, zoom: number): VenuePin[] {
-  const simulated = useSimulatedFeed() || !supabase;
+  const simulated = useSimulatedFeed();
   const [pins, setPins] = useState<VenuePin[]>([]);
   const visible = zoom >= VENUE_MIN_ZOOM && bounds !== null;
   // Round so tiny pans don't refetch.
@@ -42,8 +42,9 @@ export function useVenues(bounds: Bounds | null, zoom: number): VenuePin[] {
         if (!cancelled) setPins(mockVenues());
         return;
       }
+      if (!supabase) return;
       const [west, south, east, north] = key.split(',').map(Number) as Bounds;
-      const { data, error } = await supabase!.rpc('venues_in_bbox', {
+      const { data, error } = await supabase.rpc('venues_in_bbox', {
         p_west: west,
         p_south: south,
         p_east: east,

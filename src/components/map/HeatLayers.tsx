@@ -5,6 +5,7 @@ import { cellCenter, cellsToPoints, cellsToPolygons } from '@/lib/h3';
 import { heatLevels, heatmapDensityStops, useTheme } from '@/theme';
 import type { LiveCell } from '@shared/types.ts';
 
+import { useLevelCrossfade } from './levelCrossfade';
 import { usePulse } from './usePulse';
 
 /**
@@ -14,7 +15,8 @@ import { usePulse } from './usePulse';
  * - Street zoom (>= 13): H3 hexagons in the level colour, a pattern per
  *   level (so colour is never the only cue), a white hairline, and a slow
  *   breathing glow on Busy and Packed cells.
- * The two cross-fade between zoom 12.4 and 13.4.
+ * The two cross-fade between zoom 12.4 and 13.4. When a cell changes level,
+ * its old colour fades out over the new one (see levelCrossfade.ts).
  */
 
 const FADE_FROM = 12.4;
@@ -63,6 +65,8 @@ export function HeatLayers({ cells, selectedCell, onCellPress }: HeatLayersProps
 
   const polygons = useMemo(() => cellsToPolygons(cells), [cells]);
   const points = useMemo(() => cellsToPoints(cells), [cells]);
+  const ghost = useLevelCrossfade(cells);
+  const ghostPolygons = useMemo(() => cellsToPolygons(ghost.cells), [ghost.cells]);
 
   return (
     <>
@@ -149,6 +153,22 @@ export function HeatLayers({ cells, selectedCell, onCellPress }: HeatLayersProps
           type="line"
           filter={['==', ['get', 'cell'], selectedCell ?? '']}
           paint={{ 'line-color': colors.text.primary, 'line-width': 2 }}
+        />
+      </GeoJSONSource>
+
+      <GeoJSONSource id="heat-ghost" data={ghostPolygons}>
+        <Layer
+          id="hex-ghost"
+          type="fill"
+          beforeId="hex-pattern"
+          paint={{
+            'fill-color': levelColor as never,
+            'fill-opacity': streetOnly(ghost.fading ? 0 : 0.55) as never,
+            'fill-opacity-transition': {
+              duration: ghost.fading ? motion.levelChange : 0,
+              delay: 0,
+            },
+          }}
         />
       </GeoJSONSource>
     </>

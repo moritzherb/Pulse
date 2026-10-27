@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { IconButton, LocateIcon, NeedleIcon, Text } from '@/components/ui';
+import { Breathe, IconButton, LocateIcon, NeedleIcon, Text } from '@/components/ui';
 import { useTheme } from '@/theme';
 
 export interface MapControlsProps {
@@ -59,7 +59,9 @@ export function MapControls({
         accessibilityState={{ busy: locating }}
         onPress={onLocate}
       >
-        <LocateIcon color={locationAvailable ? colors.text.primary : colors.text.faint} />
+        <Breathe active={locating} min={0.3}>
+          <LocateIcon color={locationAvailable ? colors.text.primary : colors.text.faint} />
+        </Breathe>
       </IconButton>
     </View>
   );
