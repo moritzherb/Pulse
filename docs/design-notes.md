@@ -29,6 +29,10 @@ Every fill-in is also marked `fill-in` in the source.
 
 | What                                                                                                             | Where                                    |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Two-finger rotation; the compass face turns against the bearing, and a tap turns the map back to north           | `MapScreen`, `MapControls`               |
+| City search over about 4,000 cities worldwide, accent-insensitive, largest first                                 | `data/cities.ts`, `data/worldCities.ts`  |
+| "Getting ready" sharing state while a new region's places are imported                                           | `sharing.ts`, Settings, "What's sent"    |
+| "Usually" in the place's own local time, with a note when it differs from the phone's                            | `PlaceDetailSheet`, `usual.ts`           |
 | Dark mode palette and dark basemap (Positron recoloured on device)                                               | `tokens.ts`, `features/map/mapStyle.ts`  |
 | Appearance setting: System / Light / Dark                                                                        | Settings                                 |
 | Four named levels (Quiet, Moderate, Busy, Packed) with patterns: none, dots, lines, cross-hatch                  | `tokens.ts`, `LevelSwatch`               |

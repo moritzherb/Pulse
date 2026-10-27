@@ -89,7 +89,7 @@ Simulator alternative (Mac with Xcode): `eas build --profile development-simulat
    under **Database → Extensions** and push again.
 4. Deploy the Edge Functions:
    ```sh
-   npx supabase functions deploy ping delete-me
+   npx supabase functions deploy ping delete-me import-region
    # optional: npx supabase secrets set PING_MIN_ACCOUNT_AGE_SECONDS=120
    ```
 5. Fill in `.env`: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
@@ -98,17 +98,31 @@ Simulator alternative (Mac with Xcode): `eas build --profile development-simulat
 
 ### Venues and place names (OpenStreetMap)
 
+Pulse works anywhere in the world. Places are imported per region (H3 resolution 5,
+about 250 km²) **on demand**: the first time someone shares in a region, or looks at it
+at street zoom, the app calls the `import-region` Edge Function. It fetches the region
+from the Overpass API in the background (a minute or two) and keeps it for 30 days. At
+most 30 regions start per hour across everyone (`IMPORT_MAX_PER_HOUR`), to stay a
+polite user of the public Overpass servers; set `OVERPASS_URL` to use your own.
+
+To import ahead of time (for example a launch city), run the same importer locally:
+
 ```sh
-npm run import:osm              # downloads Vienna from the Overpass API and upserts it
-npm run import:osm -- --save vienna.json     # keep the raw download
-npm run import:osm -- --from vienna.json     # re-import offline
+npm run import:osm                                 # Vienna and the ring of regions around it
+npm run import:osm -- --city "Paris,Berlin"        # any city from the search list
+npm run import:osm -- --region 851e15b7fffffff     # specific regions
+npm run import:osm -- --city Vienna --force        # re-import even if fresh
 ```
 
 Imports bars, pubs, clubs, restaurants, cafés, markets, museums, galleries, sights,
-theatres, parks and gardens (venues), and neighbourhoods and squares (place names for
-labels). Venues closed in OSM are removed on the next run, so run it every week or two.
-Data © OpenStreetMap contributors (ODbL); the app credits it in Settings and in the
-detail sheet. Needs `DATABASE_URL`, like the seed.
+theatres, cinemas, parks, gardens, squares and more (venues, with outlines and time
+zone), and neighbourhoods (place names for labels). Venues closed in OSM are removed
+when their region is re-imported. Data © OpenStreetMap contributors (ODbL); the app
+credits it in Settings and in the detail sheet. Needs `DATABASE_URL`, like the seed.
+
+The city search list (`src/data/worldCities.ts`, 4,352 cities) is generated with
+`npm run cities` from GeoNames (CC BY 4.0) and bundled, so searches never leave the
+phone.
 
 ### Simulated Vienna data
 
@@ -136,7 +150,7 @@ npx supabase functions serve --env-file supabase/functions/.env
 
 | Step                                                                                  | Where                                                |
 | ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `npm run import:osm` loads every named place in Vienna with its outline (or a circle) | `scripts/import-osm.ts`, `scripts/osm/`              |
+| Places are imported per region from OSM, on demand (`import-region`) or ahead of time | `supabase/functions/_shared/osm/`                    |
 | While sharing, the phone downloads the outlines of its region (~250 km²) once a week  | `venue_shapes()`, `src/features/places/`             |
 | It matches its position to the smallest place it is in, then drops the position       | `src/features/location/privacyBoundary.ts`           |
 | After 2 min at the same place, every 3 min while open: `POST /ping { venue }`         | `src/features/sharing/`                              |
@@ -176,7 +190,8 @@ npm run db:test                 # or against a plain local Postgres with PostGIS
 | `npm run format`          | Prettier                                           |
 | `npm test`                | Jest unit tests (levels, H3, mock data, map style) |
 | `npm run seed`            | Simulated Vienna data (see Backend)                |
-| `npm run import:osm`      | Venues and place names from OpenStreetMap          |
+| `npm run import:osm`      | Import places ahead of time (city or region)       |
+| `npm run cities`          | Regenerate the city search list from GeoNames      |
 | `npm run db:test`         | Migrations + pgTAP tests on a local Postgres       |
 | `npm run functions:check` | Type-check the Edge Functions with Deno            |
 
@@ -198,7 +213,7 @@ src/data/             Bundled city list for search (no geocoding service)
 supabase/migrations/  Schema, RLS, aggregation, retention, cron jobs (SQL)
 supabase/functions/   Edge Functions (ping, delete-me); _shared/ is imported by the app as @shared/*
 supabase/tests/       pgTAP tests (RLS, k-anonymity, retention) and a local runner
-scripts/              Seed script (simulated Vienna crowds) and OSM import (scripts/osm/)
+scripts/              Seed script (simulated Vienna crowds), OSM import, city list generator
 design/               The Claude Design prototype (reference only)
 ```
 

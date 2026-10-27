@@ -205,7 +205,7 @@ function Gallery() {
           />
           <ToggleRow
             label="Share my area"
-            stamp={toggles.b ? 'on · 2026-10-28' : 'off'}
+            stamp={toggles.b ? 'on · 2026-10-29' : 'off'}
             value={toggles.b}
             onChange={(b) => setToggles((s) => ({ ...s, b }))}
           />
@@ -223,7 +223,7 @@ function Gallery() {
         <Card>
           <Text variant="monoId">cad3693a-5153-439b-8e80-6f3b10d2abcd</Text>
           <Text variant="monoSub" color="muted" style={{ paddingTop: 6 }}>
-            rotates 2026-10-28
+            rotates 2026-10-29
           </Text>
         </Card>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingTop: 16 }}>

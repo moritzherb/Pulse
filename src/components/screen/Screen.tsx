@@ -45,7 +45,7 @@ export function BackLink({ label, onPress }: { label: string; onPress: () => voi
   );
 }
 
-/** "Policy 2026-10-28 · Privacy policy" footer line. */
+/** "Policy 2026-10-29 · Privacy policy" footer line. */
 export function PolicyFooter({
   version,
   onOpenPolicy,

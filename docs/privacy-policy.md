@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Pulse** · Version 2026-10-28
+**Pulse** · Version 2026-10-29
 
 > **Before publishing**, replace every `{{PLACEHOLDER}}`:
 > `{{APP_NAME}}`, `{{CONTROLLER_NAME}}`, `{{CONTROLLER_ADDRESS}}`, `{{PRIVACY_EMAIL}}`,
@@ -30,11 +30,11 @@ only when there are at least five. Individual reports are deleted after 20 minut
 
 ### 3.1 When you only look at the map (no sharing)
 
-| Data                                                                                                                                                 | Why                                                                                     | Legal basis                                                         | Kept                                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Your IP address and technical request data (app version, time), and the map area you are viewing (as region or viewport coordinates in the request)  | To deliver crowd data, venue names and the detail sheet, and to keep the service secure | Our legitimate interest in operating the service, Art. 6(1)(f) GDPR | In our hosting provider's request logs for a short period set by its log retention (days); we do not use them for anything else |
-| Your phone's time zone (for example "Europe/Vienna")                                                                                                 | To show "usually busy at" in your local hours                                           | Art. 6(1)(f) GDPR                                                   | Not stored                                                                                                                      |
-| Only while sharing: the **region** (an area of about 250 km², such as "most of Vienna") whose place outlines your phone downloads, about once a week | To let your phone find the place it is at without sending its position                  | Art. 6(1)(f) GDPR                                                   | In request logs only, as above                                                                                                  |
+| Data                                                                                                                                                                                                                                                    | Why                                                                                                     | Legal basis                                                         | Kept                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Your IP address and technical request data (app version, time), and the map area you are viewing (as region or viewport coordinates in the request)                                                                                                     | To deliver crowd data, venue names and the detail sheet, and to keep the service secure                 | Our legitimate interest in operating the service, Art. 6(1)(f) GDPR | In our hosting provider's request logs for a short period set by its log retention (days); we do not use them for anything else |
+| Your phone's time zone (for example "Europe/Vienna")                                                                                                                                                                                                    | To show "usually busy at" in your local hours                                                           | Art. 6(1)(f) GDPR                                                   | Not stored                                                                                                                      |
+| The **region** (an area of about 250 km², such as "most of Vienna") whose place outlines your phone downloads while sharing (about once a week), or whose public places it asks us to load when you share or look closely at an area for the first time | To let your phone find the place it is at without sending its position, and to make Pulse work anywhere | Art. 6(1)(f) GDPR                                                   | In request logs only, as above; we keep a list of loaded regions (no link to you)                                               |
 
 Map tiles are loaded directly from **OpenFreeMap** (`tiles.openfreemap.org`). Like any
 web request, this reveals your IP address and which map tiles (area and zoom level) you
@@ -76,9 +76,12 @@ The hourly averages are kept for 12 months.
 
 ### 3.4 Venue and place names
 
-Names, categories and outlines of bars, cafés, museums, parks and neighbourhoods come
-from OpenStreetMap (© OpenStreetMap contributors, ODbL). They are public data and do not
-relate to you.
+Names, categories, outlines and time zones of bars, cafés, museums, parks and
+neighbourhoods come from OpenStreetMap (© OpenStreetMap contributors, ODbL). Our server
+loads them region by region from the Overpass API; those requests contain only the
+area's coordinates, nothing about you. City names for the search come from GeoNames
+(CC BY 4.0) and are built into the app, so searching sends nothing. All of this is
+public data and does not relate to you.
 
 ## 4. On your phone
 

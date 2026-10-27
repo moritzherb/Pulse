@@ -6,18 +6,18 @@ working name.
 
 ## App Store (iOS)
 
-| Field              | Limit | Text                                                                                                                                    |
-| ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Name               | 30    | `{{APP_NAME}}`                                                                                                                          |
-| Subtitle           | 30    | How busy is it right now?                                                                                                               |
-| Promotional text   | 170   | See how busy Vienna’s squares, markets and bars are right now. Anonymous by design: places with fewer than five people are never shown. |
-| Keywords           | 100   | crowd,busy,crowded,live,heatmap,wien,vienna,nightlife,bars,cafes,places,anonymous,privacy,map,now                                       |
-| Primary category   |       | Travel                                                                                                                                  |
-| Secondary category |       | Navigation                                                                                                                              |
-| Price              |       | Free, no in-app purchases                                                                                                               |
-| Age rating         |       | 4+ (every questionnaire answer "None"; no user-generated content, no web access)                                                        |
-| Privacy policy URL |       | `{{PRIVACY_POLICY_URL}}` (publish `docs/privacy-policy.md`)                                                                             |
-| Support URL        |       | `{{SUPPORT_URL}}`                                                                                                                       |
+| Field              | Limit | Text                                                                                                                                            |
+| ------------------ | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name               | 30    | `{{APP_NAME}}`                                                                                                                                  |
+| Subtitle           | 30    | How busy is it right now?                                                                                                                       |
+| Promotional text   | 170   | See how busy squares, markets, cafés and bars are right now, anywhere. Anonymous by design: places with fewer than five people are never shown. |
+| Keywords           | 100   | crowd,busy,crowded,live,heatmap,wien,vienna,nightlife,bars,cafes,places,anonymous,privacy,map,now                                               |
+| Primary category   |       | Travel                                                                                                                                          |
+| Secondary category |       | Navigation                                                                                                                                      |
+| Price              |       | Free, no in-app purchases                                                                                                                       |
+| Age rating         |       | 4+ (every questionnaire answer "None"; no user-generated content, no web access)                                                                |
+| Privacy policy URL |       | `{{PRIVACY_POLICY_URL}}` (publish `docs/privacy-policy.md`)                                                                                     |
+| Support URL        |       | `{{SUPPORT_URL}}`                                                                                                                               |
 
 ### Description
 
@@ -55,7 +55,7 @@ working name.
 
 ### What's new (first release)
 
-> First release: live crowd levels for Vienna, anonymous sharing, and "usually busy at".
+> First release: live crowd levels for places anywhere in the world, anonymous sharing, and "usually busy at".
 
 ### App Review notes
 
