@@ -53,33 +53,16 @@ const streetOnly = (value: unknown) => [
 export interface HeatLayersProps {
   cells: readonly LiveCell[];
   selectedCell: string | null;
-  /** The phone's own coarse cell, drawn as a dot. Null when not sharing. */
-  myCell: string | null;
   onCellPress: (cell: string) => void;
 }
 
-export function HeatLayers({ cells, selectedCell, myCell, onCellPress }: HeatLayersProps) {
+export function HeatLayers({ cells, selectedCell, onCellPress }: HeatLayersProps) {
   const { colors, motion } = useTheme();
   const { on: pulseOn } = usePulse(motion.cellPulsePeriod);
   const half = motion.cellPulsePeriod / 2;
 
   const polygons = useMemo(() => cellsToPolygons(cells), [cells]);
   const points = useMemo(() => cellsToPoints(cells), [cells]);
-  const me = useMemo<GeoJSON.FeatureCollection>(
-    () => ({
-      type: 'FeatureCollection',
-      features: myCell
-        ? [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: { type: 'Point', coordinates: cellCenter(myCell) },
-            },
-          ]
-        : [],
-    }),
-    [myCell],
-  );
 
   return (
     <>
@@ -168,19 +151,40 @@ export function HeatLayers({ cells, selectedCell, myCell, onCellPress }: HeatLay
           paint={{ 'line-color': colors.text.primary, 'line-width': 2 }}
         />
       </GeoJSONSource>
-
-      <GeoJSONSource id="me" data={me}>
-        <Layer
-          id="me-dot"
-          type="circle"
-          paint={{
-            'circle-radius': 5,
-            'circle-color': colors.map.meDot,
-            'circle-stroke-color': colors.map.meStroke,
-            'circle-stroke-width': 2,
-          }}
-        />
-      </GeoJSONSource>
     </>
+  );
+}
+
+/** The phone's own coarse cell (centre of the last reported cell), only while sharing. */
+export function MeDot({ cell }: { cell: string | null }) {
+  const { colors } = useTheme();
+  const me = useMemo<GeoJSON.FeatureCollection>(
+    () => ({
+      type: 'FeatureCollection',
+      features: cell
+        ? [
+            {
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'Point', coordinates: cellCenter(cell) },
+            },
+          ]
+        : [],
+    }),
+    [cell],
+  );
+  return (
+    <GeoJSONSource id="me" data={me}>
+      <Layer
+        id="me-dot"
+        type="circle"
+        paint={{
+          'circle-radius': 5,
+          'circle-color': colors.map.meDot,
+          'circle-stroke-color': colors.map.meStroke,
+          'circle-stroke-width': 2,
+        }}
+      />
+    </GeoJSONSource>
   );
 }

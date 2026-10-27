@@ -18,7 +18,7 @@ Design prototype. The app re-implements it natively; it does not embed it.
 | 1a    | Expo project, design tokens, core components, token gallery                 | done  |
 | 1b    | Navigation, screen shells, MapLibre map with mock Vienna heat               | done  |
 | 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime | done  |
-| 3     | Venues (OSM import) and the cell / venue detail sheet                       |       |
+| 3     | Venues (OSM import) and the cell / venue detail sheet                       | done  |
 | 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility |       |
 | 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       |       |
 
@@ -83,6 +83,20 @@ Simulator alternative (Mac with Xcode): `eas build --profile development-simulat
    (**Project Settings → API**), and `DATABASE_URL` (**Connect → Session pooler**) for
    the seed script. Restart `npm start`.
 
+### Venues and place names (OpenStreetMap)
+
+```sh
+npm run import:osm              # downloads Vienna from the Overpass API and upserts it
+npm run import:osm -- --save vienna.json     # keep the raw download
+npm run import:osm -- --from vienna.json     # re-import offline
+```
+
+Imports bars, pubs, clubs, restaurants, cafés, markets, museums, galleries, sights,
+theatres, parks and gardens (venues), and neighbourhoods and squares (place names for
+labels). Venues closed in OSM are removed on the next run, so run it every week or two.
+Data © OpenStreetMap contributors (ODbL); the app credits it in Settings and in the
+detail sheet. Needs `DATABASE_URL`, like the seed.
+
 ### Simulated Vienna data
 
 ```sh
@@ -107,16 +121,18 @@ npx supabase functions serve --env-file supabase/functions/.env
 
 ### How the pipeline works
 
-| Step                                                                                               | Where                                        |
-| -------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| Phone converts its position to an H3 cell (res 8) and drops the coordinate                         | `src/features/location/privacyBoundary.ts`   |
-| Every 3 min while open and sharing, and on entering a new cell: `POST /ping { cell }`              | `src/features/sharing/`                      |
-| Edge Function checks the session and the cell, then `record_ping()` rate-limits and stores it      | `supabase/functions/ping`, `record_ping()`   |
-| Every minute: distinct devices per cell over 15 min, cells under 5 dropped, rounded to 5, labelled | `refresh_live_cells()`                       |
-| Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat (`pulse:tick`)          | `realtime.send()`                            |
-| App reads `live_cells` around the map and applies broadcasts                                       | `src/features/density/useDensity.ts`         |
-| Every 15 min the k-anonymous counts are added to hourly history                                    | `snapshot_hourly()`                          |
-| Pings deleted after 20 min; anonymous users after 25 h; history after 12 months                    | `purge_expired_pings()`, `purge_retention()` |
+| Step                                                                                               | Where                                         |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Phone converts its position to an H3 cell (res 8) and drops the coordinate                         | `src/features/location/privacyBoundary.ts`    |
+| Every 3 min while open and sharing, and on entering a new cell: `POST /ping { cell }`              | `src/features/sharing/`                       |
+| Edge Function checks the session and the cell, then `record_ping()` rate-limits and stores it      | `supabase/functions/ping`, `record_ping()`    |
+| Every minute: distinct devices per cell over 15 min, cells under 5 dropped, rounded to 5, labelled | `refresh_live_cells()`                        |
+| Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat (`pulse:tick`)          | `realtime.send()`                             |
+| App reads `live_cells` around the map and applies broadcasts                                       | `src/features/density/useDensity.ts`          |
+| At street zoom the app loads venue pins for the viewport                                           | `venues_in_bbox()`, `src/features/venues/`    |
+| Tapping a cell, list row or pin opens the detail sheet: live level, trend, usual busyness, venues  | `get_cell_detail()`, `src/components/detail/` |
+| Every 15 min the k-anonymous counts are added to hourly history                                    | `snapshot_hourly()`                           |
+| Pings deleted after 20 min; anonymous users after 25 h; history after 12 months                    | `purge_expired_pings()`, `purge_retention()`  |
 
 ### Database tests
 
@@ -135,6 +151,7 @@ npm run db:test                 # or against a plain local Postgres with PostGIS
 | `npm run format`          | Prettier                                           |
 | `npm test`                | Jest unit tests (levels, H3, mock data, map style) |
 | `npm run seed`            | Simulated Vienna data (see Backend)                |
+| `npm run import:osm`      | Venues and place names from OpenStreetMap          |
 | `npm run db:test`         | Migrations + pgTAP tests on a local Postgres       |
 | `npm run functions:check` | Type-check the Edge Functions with Deno            |
 
@@ -147,13 +164,16 @@ src/theme/            Tokens (colour, type, spacing, radii, shadows, motion), Th
 src/features/         Consent, location privacy boundary, density data, map screen
 src/components/map/   Heat layers, top bar, controls, "Busiest now" card, empty state
 src/features/sharing/ Ping loop (SharingEngine) and the one function that sends a ping
+src/features/detail/  Detail sheet data (get_cell_detail) and "usually busy at" helpers
+src/features/venues/  Venue pins for the viewport
+src/components/detail/ Detail bottom sheet and the usual-busyness chart
 src/features/identity/ Rotating anonymous identity (Supabase anonymous auth)
 src/lib/              Storage, Supabase client, H3 helpers, small utilities
 src/data/             Bundled city list for search (no geocoding service)
 supabase/migrations/  Schema, RLS, aggregation, retention, cron jobs (SQL)
 supabase/functions/   Edge Functions (ping, delete-me); _shared/ is imported by the app as @shared/*
 supabase/tests/       pgTAP tests (RLS, k-anonymity, retention) and a local runner
-scripts/              Seed script for simulated Vienna data
+scripts/              Seed script (simulated Vienna crowds) and OSM import (scripts/osm/)
 design/               The Claude Design prototype (reference only)
 ```
 
