@@ -48,6 +48,12 @@ const blobRadius = (scale: number) => [
   ...RADIUS_STOPS.flatMap(([zoom, px]) => [zoom, Math.round(px * scale * 10) / 10]),
 ];
 
+/**
+ * How see-through the heat is: enough colour to read the level at a glance,
+ * while street names and the basemap stay visible underneath.
+ */
+const HEAT_OPACITY = 0.66;
+
 /** How much a glow grows at the top of a breath: a little, never a jump. */
 const SWELL = { radius: 1.14, intensity: 1.1 };
 
@@ -103,7 +109,7 @@ export function HeatLayers({ places, selectedId, onPlacePress }: HeatLayersProps
           'heatmap-intensity-transition': { duration: half, delay: 0 },
           'heatmap-radius': radius as never,
           'heatmap-radius-transition': { duration: half, delay: 0 },
-          'heatmap-opacity': 0.85,
+          'heatmap-opacity': HEAT_OPACITY,
           'heatmap-color': [
             'interpolate',
             ['linear'],
