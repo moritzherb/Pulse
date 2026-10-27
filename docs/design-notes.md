@@ -17,33 +17,34 @@ Every fill-in is also marked `fill-in` in the source.
 
 ## Decisions that change the design
 
-| Change                                                              | Why                                                                                      |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Consent lists one purpose (location); analytics and updates removed | The app does neither; the store privacy labels must match the code                       |
-| Consent screen drops the "Each one separate" toggle block           | With one purpose it repeated the two buttons; the switch remains in Settings             |
-| "A 460 m area" instead of "a 460 m area and a category"             | Category is derived on the server from OpenStreetMap, never sent by the phone            |
-| Basemap: OpenFreeMap Positron (vector) instead of CARTO raster      | Same cartography; CARTO needs a paid licence for commercial apps                         |
-| Blur at city zoom, hexagons from zoom 13                            | Hexagons carry level patterns and the pulse; the blur keeps the design's look zoomed out |
+| Change                                                              | Why                                                                                        |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Consent lists one purpose (location); analytics and updates removed | The app does neither; the store privacy labels must match the code                         |
+| Consent screen drops the "Each one separate" toggle block           | With one purpose it repeated the two buttons; the switch remains in Settings               |
+| "The place you are at" instead of "a 460 m area and a category"     | Crowds are counted per place; the category comes from OpenStreetMap, never the phone       |
+| Basemap: OpenFreeMap Positron (vector) instead of CARTO raster      | Same cartography; CARTO needs a paid licence for commercial apps                           |
+| The heatmap sits on places at every zoom, no hexagons               | Areas were too coarse to say whether a café is busy; a dot and name per place from zoom 13 |
 
 ## Fill-ins (not in the design, built in its style)
 
-| What                                                                                                             | Where                                         |
-| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Dark mode palette and dark basemap (Positron recoloured on device)                                               | `tokens.ts`, `features/map/mapStyle.ts`       |
-| Appearance setting: System / Light / Dark                                                                        | Settings                                      |
-| Four named levels (Quiet, Moderate, Busy, Packed) with patterns: none, dots, lines, cross-hatch                  | `tokens.ts`, `LevelSwatch`, map pattern tiles |
-| Level word on every "Busiest now" row; tappable legend that reveals the pattern key                              | `BusiestSheet`                                |
-| Pulse of Busy / Packed cells and of the city heatmap                                                             | `HeatLayers`                                  |
-| Cross-fade when a cell changes level; list rows glide to their new rank                                          | `levelCrossfade.ts`, `BusiestSheet`           |
-| Cell / venue detail sheet, "usually busy at" chart, now-vs-usual line                                            | `components/detail/`                          |
-| Venue pins (hollow rings) with names from zoom 15.5                                                              | `VenueLayer`                                  |
-| Offline state ("Can't reach Pulse right now")                                                                    | `EmptyState`                                  |
-| Delete my data asks for a second tap within 5 s                                                                  | Settings                                      |
-| Onboarding entrance (blocks rise 8 pt, 70 ms apart)                                                              | `onboarding.tsx`                              |
-| Locate button breathes while it searches                                                                         | `MapControls`, `Breathe`                      |
-| High-contrast palette for Increase Contrast / High contrast text                                                 | `tokens.ts`                                   |
-| App icon and splash: the design's ring, an outer pulse ring in its border grey, one dot in the ramp's packed red | `assets/`                                     |
-| About line (version, OpenStreetMap / OpenFreeMap credits)                                                        | Settings                                      |
+| What                                                                                                             | Where                                    |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Dark mode palette and dark basemap (Positron recoloured on device)                                               | `tokens.ts`, `features/map/mapStyle.ts`  |
+| Appearance setting: System / Light / Dark                                                                        | Settings                                 |
+| Four named levels (Quiet, Moderate, Busy, Packed) with patterns: none, dots, lines, cross-hatch                  | `tokens.ts`, `LevelSwatch`               |
+| Level word on every "Busiest now" row; tappable legend that reveals the pattern key                              | `BusiestSheet`                           |
+| Levels relative to each place's usual peak, so a full café and a full park both read Packed                      | `level_for_place()`, `_shared/levels.ts` |
+| The heatmap breathes while anything is Busy or Packed                                                            | `HeatLayers`                             |
+| Place dots fade to their new colour when the level changes; list rows glide to their new rank                    | `HeatLayers`, `BusiestSheet`             |
+| Place detail sheet, "usually busy at" chart, now-vs-usual line, busy places nearby                               | `components/detail/`                     |
+| Venue pins (hollow rings) with names from zoom 15.5                                                              | `VenueLayer`                             |
+| Offline state ("Can't reach Pulse right now")                                                                    | `EmptyState`                             |
+| Delete my data asks for a second tap within 5 s                                                                  | Settings                                 |
+| Onboarding entrance (blocks rise 8 pt, 70 ms apart)                                                              | `onboarding.tsx`                         |
+| Locate button breathes while it searches                                                                         | `MapControls`, `Breathe`                 |
+| High-contrast palette for Increase Contrast / High contrast text                                                 | `tokens.ts`                              |
+| App icon and splash: the design's ring, an outer pulse ring in its border grey, one dot in the ramp's packed red | `assets/`                                |
+| About line (version, OpenStreetMap / OpenFreeMap credits)                                                        | Settings                                 |
 
 ## Accessibility
 

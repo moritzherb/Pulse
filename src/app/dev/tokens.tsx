@@ -199,13 +199,13 @@ function Gallery() {
         <GroupedList>
           <ToggleRow
             label="Share my area"
-            detail="A ~460 m cell, while open."
+            detail="The place you are at, while open."
             value={toggles.a}
             onChange={(a) => setToggles((s) => ({ ...s, a }))}
           />
           <ToggleRow
             label="Share my area"
-            stamp={toggles.b ? 'on · 2026-10-27' : 'off'}
+            stamp={toggles.b ? 'on · 2026-10-28' : 'off'}
             value={toggles.b}
             onChange={(b) => setToggles((s) => ({ ...s, b }))}
           />
@@ -215,7 +215,7 @@ function Gallery() {
         <StatusCard
           status="sharing"
           title="Sharing on"
-          detail="A cell every 3 min. 2 row(s), all expiring within 20 min."
+          detail="At Café Central. 2 report(s) stored, all expiring within 20 min."
         />
         <View style={{ height: 8 }} />
         <StatusCard status="off" title="Sharing off" detail="Nothing is sent. Full map access." />

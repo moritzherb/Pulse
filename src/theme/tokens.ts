@@ -414,7 +414,7 @@ export const motion = {
   /** Sharing dot (design: `pulseDot 2.4s ease-in-out infinite`, opacity 1 -> 0.15). */
   liveDotPeriod: 2400,
   liveDotMinOpacity: 0.15,
-  /** Camera moves: fly to cell, locate me, pick city (design: easeTo 900 ms). */
+  /** Camera moves: fly to a place, locate me, pick city (design: easeTo 900 ms). */
   camera: 900,
   /** Reset north (design: easeTo 400 ms). */
   resetNorth: 400,

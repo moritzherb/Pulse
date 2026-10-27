@@ -179,7 +179,7 @@ export function rhythm(category: Category, at: Date): number {
   return withinHour * (WEEKDAY[category][isoDay] ?? 1) * nightSpill(category, isoDay, hour);
 }
 
-/** Deterministic pseudo-random 0..1 from a string, for stable per-cell noise. */
+/** Deterministic pseudo-random 0..1 from a string, for stable per-place noise. */
 export function hash01(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {

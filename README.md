@@ -6,7 +6,8 @@ anonymous crowd-density heatmap.
 - Expo SDK 58 · React Native 0.88 · Expo Router · TypeScript (strict)
 - MapLibre React Native with OpenFreeMap vector tiles
 - Supabase (Postgres + PostGIS, Edge Functions, Realtime, anonymous auth)
-- Uber H3 cells at resolution 8 (~460 m). Raw coordinates never leave the phone.
+- Crowds are counted per place (every named café, bar, museum, square and park from
+  OpenStreetMap). The phone finds the place it is at by itself; coordinates never leave it.
 
 The visual source of truth is [`design/Pulse.dc.html`](design/Pulse.dc.html), a Claude
 Design prototype. The app re-implements it natively; it does not embed it.
@@ -29,9 +30,10 @@ filled in where the design is silent, and the accessibility features.
 | 1a    | Expo project, design tokens, core components, token gallery                 | done  |
 | 1b    | Navigation, screen shells, MapLibre map with mock Vienna heat               | done  |
 | 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime | done  |
-| 3     | Venues (OSM import) and the cell / venue detail sheet                       | done  |
+| 3     | Venues (OSM import) and the detail sheet                                    | done  |
 | 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility | done  |
 | 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       | done  |
+| 6     | Crowds per place: outlines, matching on the phone, place heatmap            | done  |
 
 ## Setup from zero
 
@@ -132,18 +134,20 @@ npx supabase functions serve --env-file supabase/functions/.env
 
 ### How the pipeline works
 
-| Step                                                                                               | Where                                         |
-| -------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Phone converts its position to an H3 cell (res 8) and drops the coordinate                         | `src/features/location/privacyBoundary.ts`    |
-| Every 3 min while open and sharing, and on entering a new cell: `POST /ping { cell }`              | `src/features/sharing/`                       |
-| Edge Function checks the session and the cell, then `record_ping()` rate-limits and stores it      | `supabase/functions/ping`, `record_ping()`    |
-| Every minute: distinct devices per cell over 15 min, cells under 5 dropped, rounded to 5, labelled | `refresh_live_cells()`                        |
-| Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat (`pulse:tick`)          | `realtime.send()`                             |
-| App reads `live_cells` around the map and applies broadcasts                                       | `src/features/density/useDensity.ts`          |
-| At street zoom the app loads venue pins for the viewport                                           | `venues_in_bbox()`, `src/features/venues/`    |
-| Tapping a cell, list row or pin opens the detail sheet: live level, trend, usual busyness, venues  | `get_cell_detail()`, `src/components/detail/` |
-| Every 15 min the k-anonymous counts are added to hourly history                                    | `snapshot_hourly()`                           |
-| Pings deleted after 20 min; anonymous users after 25 h; history after 12 months                    | `purge_expired_pings()`, `purge_retention()`  |
+| Step                                                                                  | Where                                                |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `npm run import:osm` loads every named place in Vienna with its outline (or a circle) | `scripts/import-osm.ts`, `scripts/osm/`              |
+| While sharing, the phone downloads the outlines of its region (~250 km²) once a week  | `venue_shapes()`, `src/features/places/`             |
+| It matches its position to the smallest place it is in, then drops the position       | `src/features/location/privacyBoundary.ts`           |
+| After 2 min at the same place, every 3 min while open: `POST /ping { venue }`         | `src/features/sharing/`                              |
+| Edge Function checks the session and the id, then `record_ping()` rate-limits it      | `supabase/functions/ping`, `record_ping()`           |
+| Every minute: distinct devices per place over 15 min, under 5 dropped, rounded to 5   | `refresh_live_venues()`                              |
+| Level: against the place's usual peak (`refresh_usual_peaks()`, daily), else fixed    | `level_for_place()`, `_shared/levels.ts`             |
+| Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat            | `realtime.send()`                                    |
+| App reads `live_venues` around the map and draws a heatmap on the places              | `useDensity.ts`, `src/components/map/HeatLayers.tsx` |
+| Tapping a place, list row or pin opens the detail sheet: level, trend, usual, nearby  | `get_venue_detail()`, `src/components/detail/`       |
+| Every 15 min the k-anonymous counts are added to hourly history                       | `snapshot_hourly()`                                  |
+| Pings deleted after 20 min; anonymous users after 25 h; history after 12 months       | `purge_expired_pings()`, `purge_retention()`         |
 
 ### Checking retention
 
@@ -201,9 +205,11 @@ design/               The Claude Design prototype (reference only)
 ## Privacy boundary
 
 `src/features/location/privacyBoundary.ts` is the only file allowed to read the device
-position (enforced by an ESLint `no-restricted-imports` rule). It turns the position into
-an H3 cell inside a block scope and returns only cell ids. The map centres on the centre
-of your ~460 m cell, never on your exact position.
+position (enforced by an ESLint `no-restricted-imports` rule). Inside a block scope it
+looks up the public place the position falls in (using outlines already on the phone)
+and returns only that place's id, plus H3 cell ids for the private-area check and for
+centring the map on your ~460 m area. The position itself is never returned. Nothing is
+sent when the phone is not at a place, or when the position is less accurate than 50 m.
 
 ## Basemap
 

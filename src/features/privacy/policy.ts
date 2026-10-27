@@ -13,15 +13,15 @@ export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   },
   {
     h: 'Sharing',
-    p: 'Only if you choose to share, and only while the app is open: an area ID (an H3 cell of about 460 m), a random ID made for this, and the time the server received it. Nothing else.',
+    p: 'Only if you choose to share, and only while the app is open: the ID of the public place you are at (a café, a museum, a park, from OpenStreetMap) once you have stayed two minutes, a random ID made for this, and the time the server received it. When you are not at such a place, nothing is sent. Homes and offices are never places on the map.',
   },
   {
     h: 'On device',
-    p: 'Your position is turned into the area ID on your phone, then discarded. It is never sent, stored or logged.',
+    p: 'Your phone downloads the outlines of public places in your region (about 250 km²; the request names only the region) and checks which one you are in. Your position is then discarded. It is never sent, stored or logged.',
   },
   {
     h: 'Private areas',
-    p: 'Places you mark, such as home or work (about 250 m), are never reported. The list stays on your phone.',
+    p: 'Nothing is sent within about 250 m of spots you mark, such as home or work. The list stays on your phone.',
   },
   {
     h: 'Retention',
@@ -29,7 +29,7 @@ export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   },
   {
     h: 'Aggregation',
-    p: 'The map counts different phones per area over 15 minutes. Areas with fewer than five never leave the database. Counts are rounded to five.',
+    p: 'The map counts different phones per place over 15 minutes. Places with fewer than five never leave the database. Counts are rounded to five. Levels compare a place with its own usual peak.',
   },
   {
     h: 'Legal basis',
@@ -41,7 +41,7 @@ export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   },
   {
     h: 'Processors',
-    p: 'Supabase (database, EU region) under a data processing agreement. OpenFreeMap serves map tiles. Venue names © OpenStreetMap contributors. Nothing is sold or shared for advertising.',
+    p: 'Supabase (database, EU region) under a data processing agreement. OpenFreeMap serves map tiles. Place names and outlines © OpenStreetMap contributors. Nothing is sold or shared for advertising.',
   },
   {
     h: 'Contact',

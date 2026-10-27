@@ -63,7 +63,8 @@ build once, then it loads the latest code from your computer.
    - Tap **Just browse**: the map of Vienna with simulated crowds appears.
    - The simulation follows the real time in Vienna, so at night the map is quiet. That
      is expected.
-   - Zoom in until hexagons appear, tap one, swipe the sheet up to see "Usually".
+   - The heat sits on places: zoom in to see names, tap a glowing place, swipe the sheet
+     up to see "Usually".
    - Tap the `{}` button: "What's sent". The **Simulated feed** switch is at the bottom.
    - Settings: switch Appearance to Dark; try "Never share where I am now".
 
@@ -101,14 +102,19 @@ Use a test project, not the one you will launch with.
    npm run seed -- --yes
    npm run seed -- --live --yes
    ```
-   Real Vienna venues, 28 days of simulated history, then simulated phones every
-   minute. Keep the last one running in its own terminal window. (`--yes` is needed
+   Every named place in Vienna with its outline (this download takes a few minutes),
+   28 days of simulated history, then simulated phones every minute. Keep the last one running in its own terminal window. (`--yes` is needed
    because the scripts refuse non-local databases by default.)
 6. **Restart the app server**: `npx expo start --dev-client --clear`, then reopen the app.
    The map now shows live data that updates every minute.
 7. **Test sharing**: Settings → **Share my area** on. After a few minutes, "What's sent"
    shows a last update and Settings shows your rotating ID.
 8. **Clean up later**: `npm run seed -- --reset --yes` removes all simulated data.
+
+**Updating from an earlier version** (before crowds were counted per place): pull the
+code, then run `npx supabase db push`, `npx supabase functions deploy ping`,
+`npm run import:osm -- --yes` and `npm run seed -- --yes` again. The import adds the
+place outlines the phone needs.
 
 ## If something doesn't work
 

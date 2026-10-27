@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Pulse** · Version 2026-10-27
+**Pulse** · Version 2026-10-28
 
 > **Before publishing**, replace every `{{PLACEHOLDER}}`:
 > `{{APP_NAME}}`, `{{CONTROLLER_NAME}}`, `{{CONTROLLER_ADDRESS}}`, `{{PRIVACY_EMAIL}}`,
@@ -20,19 +20,21 @@ described here. Contact for anything about your data: {{PRIVACY_EMAIL}}.
 ## 2. Pulse in one paragraph
 
 Pulse shows how busy places are right now. You can look at the map without sharing
-anything and without an account. If you choose to share, your phone tells our server
-which roughly 460 m area it is in, every few minutes while the app is open. The server
-only ever publishes how many different phones are in an area, and only when there are
-at least five. Individual reports are deleted after 20 minutes.
+anything and without an account. If you choose to share, your phone works out which
+public place it is at (a café, a museum, a park) and tells our server only that place,
+every few minutes while the app is open. When it is not at such a place, it sends
+nothing. The server only ever publishes how many different phones are at a place, and
+only when there are at least five. Individual reports are deleted after 20 minutes.
 
 ## 3. What we process, why, and for how long
 
 ### 3.1 When you only look at the map (no sharing)
 
-| Data                                                                                                                                                | Why                                                                                     | Legal basis                                                         | Kept                                                                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Your IP address and technical request data (app version, time), and the map area you are viewing (as region or viewport coordinates in the request) | To deliver crowd data, venue names and the detail sheet, and to keep the service secure | Our legitimate interest in operating the service, Art. 6(1)(f) GDPR | In our hosting provider's request logs for a short period set by its log retention (days); we do not use them for anything else |
-| Your phone's time zone (for example "Europe/Vienna")                                                                                                | To show "usually busy at" in your local hours                                           | Art. 6(1)(f) GDPR                                                   | Not stored                                                                                                                      |
+| Data                                                                                                                                                 | Why                                                                                     | Legal basis                                                         | Kept                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Your IP address and technical request data (app version, time), and the map area you are viewing (as region or viewport coordinates in the request)  | To deliver crowd data, venue names and the detail sheet, and to keep the service secure | Our legitimate interest in operating the service, Art. 6(1)(f) GDPR | In our hosting provider's request logs for a short period set by its log retention (days); we do not use them for anything else |
+| Your phone's time zone (for example "Europe/Vienna")                                                                                                 | To show "usually busy at" in your local hours                                           | Art. 6(1)(f) GDPR                                                   | Not stored                                                                                                                      |
+| Only while sharing: the **region** (an area of about 250 km², such as "most of Vienna") whose place outlines your phone downloads, about once a week | To let your phone find the place it is at without sending its position                  | Art. 6(1)(f) GDPR                                                   | In request logs only, as above                                                                                                  |
 
 Map tiles are loaded directly from **OpenFreeMap** (`tiles.openfreemap.org`). Like any
 web request, this reveals your IP address and which map tiles (area and zoom level) you
@@ -44,39 +46,45 @@ crash reporting, no tracking.
 
 ### 3.2 When you choose "Share anonymously"
 
-| Data                                                                                                                                                | Why                                                                                   | Legal basis                     | Kept                                                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| An **area ID**: an H3 cell at resolution 8, an area of about 0.74 km² (edges of ~460 m), computed on your phone                                     | To count how many different phones are in each area                                   | Your consent, Art. 6(1)(a) GDPR | 20 minutes, then deleted automatically                                                                          |
-| A **random ID** created for this purpose (an anonymous Supabase user). It is not derived from your phone, SIM, advertising ID or anything about you | To count each phone once per area, to rate-limit, and to let you delete what you sent | Art. 6(1)(a) GDPR               | Replaced after 24 hours or when you tap "Rotate my ID now"; deleted at the latest 25 hours after it was created |
-| The **time** the server received a report                                                                                                           | Counting the last 15 minutes                                                          | Art. 6(1)(a) GDPR               | Deleted with the report (20 minutes)                                                                            |
-| A **record of your consent** (purpose, yes/no, policy version, time)                                                                                | To be able to show that you agreed (Art. 7(1) GDPR)                                   | Art. 6(1)(c) GDPR               | Deleted together with the random ID (at most 25 hours)                                                          |
-| Your IP address in the sign-in log of the random ID                                                                                                 | Security of the sign-in service                                                       | Art. 6(1)(f) GDPR               | Deleted after 25 hours                                                                                          |
+| Data                                                                                                                                                                   | Why                                                                                    | Legal basis                     | Kept                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| A **place ID**: the public place you are at (a café, a museum, a park, a square, from OpenStreetMap), found on your phone, sent once you have stayed about two minutes | To count how many different phones are at each place                                   | Your consent, Art. 6(1)(a) GDPR | 20 minutes, then deleted automatically                                                                          |
+| A **random ID** created for this purpose (an anonymous Supabase user). It is not derived from your phone, SIM, advertising ID or anything about you                    | To count each phone once per place, to rate-limit, and to let you delete what you sent | Art. 6(1)(a) GDPR               | Replaced after 24 hours or when you tap "Rotate my ID now"; deleted at the latest 25 hours after it was created |
+| The **time** the server received a report                                                                                                                              | Counting the last 15 minutes                                                           | Art. 6(1)(a) GDPR               | Deleted with the report (20 minutes)                                                                            |
+| A **record of your consent** (purpose, yes/no, policy version, time)                                                                                                   | To be able to show that you agreed (Art. 7(1) GDPR)                                    | Art. 6(1)(c) GDPR               | Deleted together with the random ID (at most 25 hours)                                                          |
+| Your IP address in the sign-in log of the random ID                                                                                                                    | Security of the sign-in service                                                        | Art. 6(1)(f) GDPR               | Deleted after 25 hours                                                                                          |
 
-**Your exact position never leaves your phone.** The app reads it, turns it into the
-area ID on the phone, and discards it within milliseconds. It is never sent, stored or
-logged.
+**Your exact position never leaves your phone.** The app reads it, checks it against the
+outlines of public places it downloaded for your region, and discards it within
+milliseconds. It is never sent, stored or logged. A place ID does say that someone was
+at that place; that is why it is kept for 20 minutes only, tied only to a random ID
+that changes every day, and published only as a count once five or more phones are
+there. Homes, offices and other private buildings are never places on the map, so they
+can never be sent.
 
-**Private areas.** You can mark places (for example home or work, about 250 m around
+**Private areas.** You can mark spots (for example home or work, about 250 m around
 the spot) from which nothing is ever sent. This list stays on your phone.
 
 ### 3.3 What is published
 
-Every minute the server counts the different random IDs per area over the last
-15 minutes. Areas with fewer than five are never published. Counts are rounded to the
-nearest five. The published numbers, the trend, and an hourly average kept for
+Every minute the server counts the different random IDs per place over the last
+15 minutes. Places with fewer than five are never published. Counts are rounded to the
+nearest five. The level (quiet to packed) compares the count with how busy that place
+usually gets at its peak. The published numbers, the trend, and an hourly average kept for
 "usually busy at" are **anonymous**: they cannot be linked to you or to your random ID.
 The hourly averages are kept for 12 months.
 
 ### 3.4 Venue and place names
 
-Names and categories of bars, cafés, museums, parks and neighbourhoods come from
-OpenStreetMap (© OpenStreetMap contributors, ODbL). They are public data and do not
+Names, categories and outlines of bars, cafés, museums, parks and neighbourhoods come
+from OpenStreetMap (© OpenStreetMap contributors, ODbL). They are public data and do not
 relate to you.
 
 ## 4. On your phone
 
 Pulse stores on your phone, inside its own app storage: your consent choice, your
-appearance setting, your private areas, and the session of your random ID. Nothing is
+appearance setting, your private areas, the session of your random ID, and the public
+place outlines for your region. Nothing is
 stored in the iOS Keychain, so uninstalling the app removes all of it. This storage is
 strictly necessary for the functions you use.
 

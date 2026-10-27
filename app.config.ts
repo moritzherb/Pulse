@@ -30,21 +30,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       // Foreground only. Shown by iOS after the in-app consent screen, never before.
       NSLocationWhenInUseUsageDescription:
-        'Your position is turned into a ~460 m area on your phone. Only that area is sent, and only while the app is open.',
+        'Pulse checks on your phone which public place you are at, such as a café or a park. Only that place is sent, never your position, and only while the app is open.',
       ITSAppUsesNonExemptEncryption: false,
     },
     /**
      * Apple privacy manifest. Must match docs/store-privacy.md and the App
-     * Store privacy label. Collected: coarse location (an H3 cell, ~460 m)
-     * and a random rotating user ID, both only while sharing, for app
-     * functionality, not linked to identity, no tracking.
+     * Store privacy label. Collected: precise location (the public place
+     * the phone is at, such as a café, which can be finer than Apple's
+     * "coarse" threshold) and a random rotating user ID, both only while
+     * sharing, for app functionality, not linked to identity, no tracking.
      */
     privacyManifests: {
       NSPrivacyTracking: false,
       NSPrivacyTrackingDomains: [],
       NSPrivacyCollectedDataTypes: [
         {
-          NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypeCoarseLocation',
+          NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypePreciseLocation',
           NSPrivacyCollectedDataTypeLinked: false,
           NSPrivacyCollectedDataTypeTracking: false,
           NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
@@ -106,7 +107,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-location',
       {
         locationWhenInUsePermission:
-          'Your position is turned into a ~460 m area on your phone. Only that area is sent, and only while the app is open.',
+          'Pulse checks on your phone which public place you are at, such as a café or a park. Only that place is sent, never your position, and only while the app is open.',
         // Never requested, so no usage strings for them in Info.plist.
         locationAlwaysAndWhenInUsePermission: false,
         locationAlwaysPermission: false,
