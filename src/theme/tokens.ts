@@ -418,8 +418,8 @@ export const motion = {
   /** Toast visible time (design: 4600 ms). */
   toastDuration: 4600,
   // fill-in: the design has no explicit values for these.
-  /** One full breath of the heatmap over Busy / Packed places. */
-  placePulsePeriod: 2400,
+  /** One full breath of the heatmap: swell, then settle. */
+  placePulsePeriod: 3600,
   /** Press feedback on buttons and rows. */
   press: 120,
 } as const;

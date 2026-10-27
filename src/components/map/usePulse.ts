@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 /**
- * Drives the "breathing" of busy places. JS only flips a boolean every half
+ * Drives the "breathing" of the heatmap. JS only flips a boolean every half
  * period; MapLibre animates between the two paint values natively with a
  * paint transition, so there is no per-frame bridge traffic.
  *

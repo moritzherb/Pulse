@@ -34,7 +34,7 @@ Every fill-in is also marked `fill-in` in the source.
 | Four named levels (Quiet, Moderate, Busy, Packed) with patterns: none, dots, lines, cross-hatch                  | `tokens.ts`, `LevelSwatch`               |
 | Level word on every "Busiest now" row; tappable legend that reveals the pattern key                              | `BusiestSheet`                           |
 | Levels relative to each place's usual peak, so a full café and a full park both read Packed                      | `level_for_place()`, `_shared/levels.ts` |
-| The heatmap breathes while anything is Busy or Packed                                                            | `HeatLayers`                             |
+| The heatmap breathes: glows slowly swell and settle (3.6 s), eased natively                                      | `HeatLayers`                             |
 | List rows glide to their new rank when levels change                                                             | `BusiestSheet`                           |
 | Place detail sheet, "usually busy at" chart, now-vs-usual line, busy places nearby                               | `components/detail/`                     |
 | Venue pins (hollow rings) with names from zoom 15.5                                                              | `VenueLayer`                             |
