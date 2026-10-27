@@ -2,3 +2,4 @@ design/
 node_modules/
 .expo/
 package-lock.json
+src/data/worldCities.ts

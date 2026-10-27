@@ -427,3 +427,9 @@ entrypoint = "./functions/ping/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/delete-me/index.ts"
+
+[functions.import-region]
+enabled = true
+# The app's anon key is a valid JWT, so browsing without an identity works too.
+verify_jwt = true
+entrypoint = "./functions/import-region/index.ts"

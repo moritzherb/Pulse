@@ -135,11 +135,11 @@ async function buildModel(create: boolean): Promise<ModelVenue[]> {
     if (id === undefined && create) {
       const [row] = await sql<{ id: number }[]>`
         insert into public.venues
-          (name, category, kind, rank, geom, cell, region, radius_m, area_m2, source, source_id)
+          (name, category, kind, rank, geom, cell, region, radius_m, area_m2, tz, source, source_id)
         values (
           ${v.name}, ${v.category}, ${v.kind}, 2, ${point},
           ${latLngToCell(v.lat, v.lng, H3_RESOLUTION)}, ${latLngToCell(v.lat, v.lng, REGION_RESOLUTION)},
-          ${v.radiusM}, ${Math.round(Math.PI * v.radiusM * v.radiusM)}, 'seed', ${v.name})
+          ${v.radiusM}, ${Math.round(Math.PI * v.radiusM * v.radiusM)}, 'Europe/Vienna', 'seed', ${v.name})
         returning id`;
       id = row!.id;
       inserted += 1;

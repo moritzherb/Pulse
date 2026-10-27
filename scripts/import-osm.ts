@@ -1,39 +1,43 @@
 /**
- * Import venues and place names for Vienna from OpenStreetMap.
+ * Import public places from OpenStreetMap ahead of time, region by region.
  *
  *   DATABASE_URL=postgresql://... npx tsx scripts/import-osm.ts [options]
  *
- *   --from <file.json>  Use a saved Overpass response instead of downloading
- *   --save <file.json>  Save the downloaded Overpass response
+ *   --city <names>      Comma-separated cities from src/data/cities.ts (default: Vienna).
+ *                       Imports the city's region and the ring around it.
+ *   --region <ids>      Comma-separated H3 resolution-5 regions instead
+ *   --ring <n>          Rings of neighbouring regions around each city (default 1)
+ *   --force             Re-import regions imported in the last 30 days
  *   --endpoint <url>    Overpass endpoint (default https://overpass-api.de/api/interpreter)
  *   --yes               Required when DATABASE_URL is not a local database
  *
- * Upserts venues (with their outlines) and places with source = 'osm', then
- * removes OSM rows that were not in this import (closed or renamed venues).
- * Venue ids stay the same across imports, so phones' cached outlines and the
- * history of each place stay valid. Safe to run repeatedly, for example once
- * a week. Data © OpenStreetMap contributors, ODbL.
+ * Anywhere else, the app imports a region on demand the first time it is
+ * needed (Edge Function `import-region`); both use the same code
+ * (supabase/functions/_shared/osm/importRegion.ts) and the same database
+ * functions. Venue ids stay the same across imports. Data © OpenStreetMap
+ * contributors, ODbL.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
-
-import { latLngToCell } from 'h3-js';
+import tzLookup from '@photostructure/tz-lookup';
+import { cellToBoundary, cellToChildren, gridDisk, latLngToCell } from 'h3-js';
 import postgres from 'postgres';
 
-import { H3_RESOLUTION, REGION_RESOLUTION } from '../supabase/functions/_shared/types.ts';
-
 import {
-  overpassQuery,
-  parseOverpass,
-  shapeWkt,
-  VIENNA_BBOX,
-  type OsmElement,
-} from './osm/classify.ts';
+  importRegion,
+  overpassClient,
+  REGION_RES,
+} from '../supabase/functions/_shared/osm/importRegion.ts';
+import { CITIES } from '../src/data/cities.ts';
 
 const argv = process.argv.slice(2);
 const arg = (name: string) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 ? argv[i + 1] : undefined;
 };
+const list = (v: string | undefined) =>
+  (v ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -47,89 +51,76 @@ if (!isLocal && !argv.includes('--yes')) {
   process.exit(1);
 }
 
-async function download(): Promise<{ elements?: OsmElement[] }> {
-  const endpoint = arg('endpoint') ?? 'https://overpass-api.de/api/interpreter';
-  console.log(`Querying ${endpoint} with outlines (this can take a few minutes)...`);
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'Pulse-import/1.0',
-    },
-    body: new URLSearchParams({ data: overpassQuery(VIENNA_BBOX) }),
-  });
-  if (!res.ok)
-    throw new Error(`Overpass returned ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  return (await res.json()) as { elements?: OsmElement[] };
+/** The regions to import, from --region or --city. */
+function regionsToImport(): string[] {
+  const explicit = list(arg('region'));
+  if (explicit.length > 0) return explicit;
+  const ring = Number(arg('ring') ?? 1);
+  const names = list(arg('city'));
+  const regions = new Set<string>();
+  for (const name of names.length > 0 ? names : ['Vienna']) {
+    const city = CITIES.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (!city) throw new Error(`Unknown city "${name}". See src/data/cities.ts.`);
+    for (const r of gridDisk(latLngToCell(city.lat, city.lng, REGION_RES), ring)) regions.add(r);
+  }
+  return [...regions];
 }
 
 async function main() {
-  const from = arg('from');
-  const json = from ? JSON.parse(readFileSync(from, 'utf8')) : await download();
-  const save = arg('save');
-  if (save && !from) writeFileSync(save, JSON.stringify(json));
-
-  const { venues, places } = parseOverpass(json);
-  const outlines = venues.filter((v) => v.shape.type === 'polygon').length;
-  console.log(
-    `Parsed ${venues.length} venues (${outlines} with outlines, the rest as circles) and ${places.length} places.`,
+  const regions = regionsToImport();
+  const force = argv.includes('--force');
+  const overpass = overpassClient(
+    arg('endpoint') ?? 'https://overpass-api.de/api/interpreter',
+    'Pulse-import/1.0 (crowd levels for public places)',
   );
-  if (venues.length === 0) throw new Error('No venues parsed; refusing to wipe existing data.');
-
   const sql = postgres(url!, { prepare: false, onnotice: () => {}, max: 2 });
+  console.log(`Importing ${regions.length} region(s); each takes a minute or two.`);
+
   try {
-    const startedAt = new Date();
-    await sql.begin(async (tx) => {
-      for (let i = 0; i < venues.length; i += 1000) {
-        const rows = venues.slice(i, i + 1000).map((v) => ({
-          name: v.name,
-          category: v.category,
-          kind: v.kind,
-          rank: v.rank,
-          geom: `SRID=4326;POINT(${v.lng} ${v.lat})`,
-          cell: latLngToCell(v.lat, v.lng, H3_RESOLUTION),
-          region: latLngToCell(v.lat, v.lng, REGION_RESOLUTION),
-          shape: shapeWkt(v.shape),
-          radius_m: v.shape.type === 'circle' ? v.shape.radiusM : null,
-          area_m2: Math.round(v.areaM2),
-          source: 'osm',
-          source_id: v.sourceId,
-          imported_at: startedAt,
-        }));
-        await tx`
-          insert into public.venues ${tx(rows, 'name', 'category', 'kind', 'rank', 'geom', 'cell', 'region', 'shape', 'radius_m', 'area_m2', 'source', 'source_id', 'imported_at')}
-          on conflict (source, source_id) do update set
-            name = excluded.name, category = excluded.category, kind = excluded.kind,
-            rank = excluded.rank, geom = excluded.geom, cell = excluded.cell,
-            region = excluded.region, shape = excluded.shape, radius_m = excluded.radius_m,
-            area_m2 = excluded.area_m2, imported_at = excluded.imported_at`;
+    for (const region of regions) {
+      const [claim] = await sql<{ status: string }[]>`
+        select public.claim_region_import(${region}, 1000000,
+          ${force ? '0 seconds' : '30 days'}::interval) as status`;
+      if (claim?.status !== 'claimed') {
+        console.log(
+          `${region}: ${claim?.status === 'fresh' ? 'imported recently, skipped (use --force)' : claim?.status}`,
+        );
+        continue;
       }
-      for (let i = 0; i < places.length; i += 2000) {
-        const rows = places.slice(i, i + 2000).map((p) => ({
-          name: p.name,
-          kind: p.kind,
-          geom: `SRID=4326;POINT(${p.lng} ${p.lat})`,
-          source: 'osm',
-          source_id: p.sourceId,
-          imported_at: startedAt,
-        }));
-        await tx`
-          insert into public.places ${tx(rows, 'name', 'kind', 'geom', 'source', 'source_id', 'imported_at')}
-          on conflict (source, source_id) do update set
-            name = excluded.name, kind = excluded.kind, geom = excluded.geom,
-            imported_at = excluded.imported_at`;
+      try {
+        const result = await importRegion(region, {
+          h3: { latLngToCell, cellToChildren, cellToBoundary },
+          timeZone: (lat, lng) => {
+            try {
+              return tzLookup(lat, lng);
+            } catch {
+              return null;
+            }
+          },
+          overpass,
+          upsertVenues: async (rows, at) => {
+            await sql`select public.upsert_osm_venues(${sql.json(rows as never)}, ${at})`;
+          },
+          upsertPlaces: async (rows, at) => {
+            await sql`select public.upsert_osm_places(${sql.json(rows as never)}, ${at})`;
+          },
+          prune: async (r, before) => {
+            await sql`select public.prune_osm_region(${r}, ${before})`;
+          },
+          log: (m) => console.log(m),
+        });
+        await sql`select public.finish_region_import(${region}, true, ${result.venues})`;
+        // Real places replace the stand-ins the seed script adds where none exist.
+        await sql`delete from public.venues where source = 'seed' and region = ${region}`;
+        console.log(
+          `${region}: ${result.venues} places (${result.outlines} with outlines), ${result.places} place names.`,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        await sql`select public.finish_region_import(${region}, false, null, ${message})`;
+        throw err;
       }
-      const goneVenues = await tx`
-        delete from public.venues where source = 'osm' and imported_at < ${startedAt} returning id`;
-      const gonePlaces = await tx`
-        delete from public.places where source = 'osm' and imported_at < ${startedAt} returning id`;
-      // Real venues replace the stand-ins the seed script adds when none exist.
-      const seed = await tx`delete from public.venues where source = 'seed' returning id`;
-      console.log(
-        `Upserted ${venues.length} venues and ${places.length} places; removed ` +
-          `${goneVenues.length} closed venues, ${gonePlaces.length} old places, ${seed.length} simulated venues.`,
-      );
-    });
+    }
     // Update names and categories of live places right away.
     await sql`select public.refresh_live_venues()`;
   } finally {

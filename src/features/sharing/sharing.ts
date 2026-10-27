@@ -26,6 +26,7 @@ export type SharingStatus =
   | 'sharing' // at a place and reporting it
   | 'arriving' // at a place, counted once the dwell time has passed
   | 'away' // not at any place on the map: nothing is sent
+  | 'preparing' // the places of this region are still being imported: nothing is sent yet
   | 'imprecise' // position too rough to name a place (Precise Location off): nothing is sent
   | 'paused' // inside a private area: nothing is sent
   | 'unavailable' // OS location permission denied
@@ -73,11 +74,15 @@ function leave(status: SharingStatus, heldMs: number) {
   patch({ status, myPlace: null, heldMs });
 }
 
-/** Find the place (downloading the region's outlines once if needed). */
-async function locate(fix?: PlaceFix): Promise<PlaceFix> {
+/**
+ * Find the place, downloading the region's outlines once if needed.
+ * 'preparing' while the server is still importing the region.
+ */
+async function locate(fix?: PlaceFix): Promise<PlaceFix | 'preparing'> {
   const f = fix ?? (await acquirePlaceFix(cachedPlaceIndex));
   if (f.indexReady) return f;
   const index = await loadPlaceIndex(f.region);
+  if (index === 'pending') return 'preparing';
   if (!index) throw new Error('place outlines unavailable');
   return acquirePlaceFix(cachedPlaceIndex);
 }
@@ -91,6 +96,7 @@ export async function sendPing(fix?: PlaceFix): Promise<void> {
   inFlight = true;
   try {
     const f = await locate(fix);
+    if (f === 'preparing') return leave('preparing', sharingStore.get().heldMs ?? 0);
     if (isPrivate(f.privateKey)) return leave('paused', f.heldMs);
     if (!f.precise) return leave('imprecise', f.heldMs);
     if (!f.place) return leave('away', f.heldMs);

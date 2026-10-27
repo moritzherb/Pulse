@@ -37,9 +37,11 @@ export default function Inspector() {
         ? `You are at ${atPlace.name}. It counts once you have stayed 2 minutes.`
         : sending && atPlace
           ? `Your phone says “someone is at ${atPlace.name}”, nothing else. It is forgotten after 20 minutes.`
-          : sharing.status === 'imprecise'
-            ? 'Your location is too rough to tell which place you are at, so nothing is sent.'
-            : 'You are not at a place on the map, so nothing is being sent.';
+          : sharing.status === 'preparing'
+            ? 'Pulse is loading the places of this area for the first time, so nothing is sent yet.'
+            : sharing.status === 'imprecise'
+              ? 'Your location is too rough to tell which place you are at, so nothing is sent.'
+              : 'You are not at a place on the map, so nothing is being sent.';
 
   const rows = [
     { k: 'Your place', v: sending && atPlace ? atPlace.name : 'not shared' },

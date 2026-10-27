@@ -5,7 +5,7 @@ import {
   shapeWkt,
   VIENNA_BBOX,
   type OsmElement,
-} from '../classify';
+} from '../../supabase/functions/_shared/osm/classify.ts';
 
 /** A closed square way around a point, in Overpass `out geom` shape. */
 const square = (lat: number, lon: number, d = 0.0005) => [

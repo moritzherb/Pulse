@@ -1,10 +1,14 @@
 {
   "version": "5",
   "specifiers": {
+    "npm:@photostructure/tz-lookup@11": "11.7.0",
     "npm:@supabase/supabase-js@2": "2.118.0",
     "npm:h3-js@4": "4.5.0"
   },
   "npm": {
+    "@photostructure/tz-lookup@11.7.0": {
+      "integrity": "sha512-QbKHXvleluMIlAHf2JiQTJNU5rLQBeQhLobyRqgXZ6NNGKqNikaRkjYviJ4nMU7Y75QE7bBYM8xjiFGjAukyhw=="
+    },
     "@supabase/auth-js@2.118.0": {
       "integrity": "sha512-xWfPXyhS2KDSfAneMtI6p/tBnbdiz/5vaRKXEqUfzfC9WCniKr2Ds5o5G7RIGig0bom4z6wUY9zaV07WDVTfnQ==",
       "dependencies": [

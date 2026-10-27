@@ -65,6 +65,9 @@ build once, then it loads the latest code from your computer.
      is expected.
    - The heat sits on places: zoom in to see names, tap a glowing place, swipe the sheet
      up to see "Usually".
+   - Twist with two fingers to rotate the map; the compass needle keeps pointing north,
+     and tapping the compass turns the map back.
+   - Search any city: the list covers about 4,000 cities worldwide.
    - Tap the `{}` button: "What's sent". The **Simulated feed** switch is at the bottom.
    - Settings: switch Appearance to Dark; try "Never share where I am now".
 
@@ -83,7 +86,7 @@ Use a test project, not the one you will launch with.
    npx supabase login
    npx supabase link --project-ref <your-ref>
    npx supabase db push
-   npx supabase functions deploy ping delete-me
+   npx supabase functions deploy ping delete-me import-region
    npx supabase secrets set PING_MIN_ACCOUNT_AGE_SECONDS=0
    ```
    `<your-ref>` is the code in your project URL `https://<your-ref>.supabase.co`. The
@@ -102,7 +105,7 @@ Use a test project, not the one you will launch with.
    npm run seed -- --yes
    npm run seed -- --live --yes
    ```
-   Every named place in Vienna with its outline (this download takes a few minutes),
+   Every named place in and around Vienna with its outline (a few minutes),
    28 days of simulated history, then simulated phones every minute. Keep the last one running in its own terminal window. (`--yes` is needed
    because the scripts refuse non-local databases by default.)
 6. **Restart the app server**: `npx expo start --dev-client --clear`, then reopen the app.
@@ -112,9 +115,14 @@ Use a test project, not the one you will launch with.
 8. **Clean up later**: `npm run seed -- --reset --yes` removes all simulated data.
 
 **Updating from an earlier version** (before crowds were counted per place): pull the
-code, then run `npx supabase db push`, `npx supabase functions deploy ping`,
+code, then run `npx supabase db push`, `npx supabase functions deploy ping import-region`,
 `npm run import:osm -- --yes` and `npm run seed -- --yes` again. The import adds the
 place outlines the phone needs.
+
+**Other cities**: Pulse works anywhere. Zoom in to street level somewhere else (or share
+there) and that area's places load on their own within a minute or two. To prepare a
+city ahead of time: `npm run import:osm -- --yes --city "Paris"`. The simulated crowds
+exist only in Vienna.
 
 ## If something doesn't work
 
@@ -124,6 +132,6 @@ place outlines the phone needs.
 | iPhone says "Unable to install Pulse"         | Usually the iPhone is not in the build's device list. Run `eas device:list`; if your iPhone is missing, run `eas device:create` and install the profile it gives you. Then build again (`eas build --profile development --platform ios`), select your iPhone when asked, delete the failed icon and install the new build. Also check: the build profile is `development` (not `development-simulator`), and the iPhone runs iOS 16.4 or later |
 | The app installs but won't open               | Turn on _Settings → Privacy & Security → Developer Mode_ and restart the iPhone                                                                                                                                                                                                                                                                                                                                                                 |
 | The app can't reach your computer             | Same Wi-Fi, or `npx expo start --dev-client --tunnel`                                                                                                                                                                                                                                                                                                                                                                                           |
-| The map is empty                              | Night in Vienna (simulation), or you are looking at another city: search "Vienna"                                                                                                                                                                                                                                                                                                                                                               |
+| The map is empty                              | Night in Vienna (simulation), or another city: places there load within a minute or two of zooming in, and only places with five or more people glow                                                                                                                                                                                                                                                                                            |
 | Changes to `.env` don't show                  | Restart with `npx expo start --dev-client --clear`                                                                                                                                                                                                                                                                                                                                                                                              |
 | `supabase db push` asks for a password        | The database password from Part 2, step 1                                                                                                                                                                                                                                                                                                                                                                                                       |

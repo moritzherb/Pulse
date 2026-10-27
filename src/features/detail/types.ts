@@ -27,6 +27,8 @@ export interface PlaceDetail {
     lat: number;
     /** Name of the neighbourhood or square it is in, if known. */
     area: string | null;
+    /** The place's IANA time zone; "usually" hours are local to it. */
+    tz?: string | null;
   };
   /** Current k-anonymous state, or null under 5 devices. */
   live: Pick<LivePlace, 'devices' | 'level' | 'trend' | 'updatedAt'> | null;

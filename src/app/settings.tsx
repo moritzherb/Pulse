@@ -70,6 +70,12 @@ const STATUS_COPY: Record<SharingStatus, { card: CardStatus; title: string; deta
     title: 'Sharing on, nothing to send',
     detail: 'You are not at a place on the map right now, so nothing is sent.',
   },
+  preparing: {
+    card: 'paused',
+    title: 'Sharing on, getting ready',
+    detail:
+      'Pulse is loading the places of this area for the first time. This takes a minute or two; nothing is sent until then.',
+  },
   imprecise: {
     card: 'paused',
     title: 'Sharing on, location too rough',

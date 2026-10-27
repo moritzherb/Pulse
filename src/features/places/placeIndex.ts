@@ -5,7 +5,7 @@ import {
   ringsBounds,
   type Position,
   type Ring,
-} from './geometry';
+} from '@shared/geometry.ts';
 
 /**
  * The public places of one region, ready to test a position against. Built

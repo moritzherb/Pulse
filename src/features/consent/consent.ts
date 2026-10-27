@@ -9,7 +9,7 @@ import { readJson, StorageKeys, writeJson } from '@/lib/storage';
  * changes (EXPO_PUBLIC_POLICY_VERSION), the consent screen is shown again.
  */
 
-export const POLICY_VERSION = process.env.EXPO_PUBLIC_POLICY_VERSION ?? '2026-10-28';
+export const POLICY_VERSION = process.env.EXPO_PUBLIC_POLICY_VERSION ?? '2026-10-29';
 
 export interface ConsentState {
   /** The policy version this decision was made under. */

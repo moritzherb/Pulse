@@ -9,7 +9,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card, LevelSwatch, SectionLabel, Text, TrendGlyph, trendLabel } from '@/components/ui';
 import type { Selection } from '@/features/detail/types';
 import { usePlaceDetail } from '@/features/detail/usePlaceDetail';
-import { dayBars, isoDay, nowVsUsual, WEEKDAYS_LONG } from '@/features/detail/usual';
+import {
+  clockIn,
+  dayBars,
+  deviceTimeZone,
+  nowVsUsual,
+  WEEKDAYS_LONG,
+} from '@/features/detail/usual';
 import { heatLevels, useTheme } from '@/theme';
 import type { LivePlace } from '@shared/types.ts';
 
@@ -78,8 +84,10 @@ function Content({
   const state = usePlaceDetail(selection.id);
   const detail = state.status === 'ready' ? state.detail : null;
   const now = new Date();
-  const today = isoDay(now);
-  const hour = now.getHours();
+  // The place's own local time, wherever the person looking is.
+  const placeTz = detail?.place.tz ?? null;
+  const { day: today, hour } = clockIn(placeTz, now);
+  const elsewhere = placeTz !== null && placeTz !== deviceTimeZone();
 
   const title = selection.name;
   const area = detail?.place.area ?? null;
@@ -171,12 +179,19 @@ function Content({
       )}
       {detail &&
         (detail.usual.hours.length > 0 ? (
-          <UsualChart
-            hours={detail.usual.hours}
-            initialDay={today}
-            today={today}
-            currentHour={hour}
-          />
+          <>
+            <UsualChart
+              hours={detail.usual.hours}
+              initialDay={today}
+              today={today}
+              currentHour={hour}
+            />
+            {elsewhere && (
+              <Text variant="caption" color="tertiary" style={{ paddingTop: 6 }}>
+                Times are local to this place.
+              </Text>
+            )}
+          </>
         ) : (
           <Card>
             <Text variant="caption" color="tertiary">

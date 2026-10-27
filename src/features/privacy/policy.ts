@@ -17,7 +17,7 @@ export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   },
   {
     h: 'On device',
-    p: 'Your phone downloads the outlines of public places in your region (about 250 km²; the request names only the region) and checks which one you are in. Your position is then discarded. It is never sent, stored or logged.',
+    p: 'Your phone downloads the outlines of public places in your region (about 250 km²; the request names only the region, and asks us to load that region from OpenStreetMap the first time anyone needs it) and checks which one you are in. Your position is then discarded. It is never sent, stored or logged.',
   },
   {
     h: 'Private areas',
@@ -41,7 +41,7 @@ export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   },
   {
     h: 'Processors',
-    p: 'Supabase (database, EU region) under a data processing agreement. OpenFreeMap serves map tiles. Place names and outlines © OpenStreetMap contributors. Nothing is sold or shared for advertising.',
+    p: 'Supabase (database, EU region) under a data processing agreement. OpenFreeMap serves map tiles. Place names and outlines © OpenStreetMap contributors, loaded by our server from the Overpass API. City names © GeoNames (CC BY 4.0), built into the app. Nothing is sold or shared for advertising.',
   },
   {
     h: 'Contact',

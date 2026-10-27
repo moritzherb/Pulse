@@ -15,7 +15,7 @@ import {
   ringCentroid,
   type Position,
   type Ring,
-} from '../../src/features/places/geometry.ts';
+} from '../geometry.ts';
 
 export type Category = 'nightlife' | 'food' | 'sights' | 'outdoors';
 
@@ -153,7 +153,7 @@ export function overpassQuery([south, west, north, east]: readonly number[]): st
   const lines = VENUE_RULES.map(
     (r) => `  nwr["${r.key}"~"^(${Object.keys(r.values).join('|')})$"]["name"](${bbox});`,
   );
-  return `[out:json][timeout:600][maxsize:1073741824];
+  return `[out:json][timeout:120][maxsize:536870912];
 (
 ${lines.join('\n')}
   nwr["amenity"="place_of_worship"]["wikidata"]["name"](${bbox});

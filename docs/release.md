@@ -22,9 +22,18 @@ Use a **new** Supabase project for production. Never run the seed script against
 ```sh
 npx supabase link --project-ref <prod-ref>
 npx supabase db push                          # schema, RLS, jobs, retention
-npx supabase functions deploy ping delete-me
+npx supabase functions deploy ping delete-me import-region
 npx supabase secrets set PING_MIN_ACCOUNT_AGE_SECONDS=120 PING_MIN_INTERVAL_SECONDS=60
-DATABASE_URL=<prod session pooler url> npm run import:osm -- --yes   # real venues, no seed
+DATABASE_URL=<prod session pooler url> npm run import:osm -- --yes --city Vienna   # launch city ahead of time, no seed
+```
+
+Every other region is imported on demand by `import-region`. The public Overpass servers
+are a shared, free service with a fair-use limit; `IMPORT_MAX_PER_HOUR` (default 30)
+keeps Pulse within it. Once usage grows, run your own Overpass instance and point
+`OVERPASS_URL` at it:
+
+```sh
+npx supabase secrets set OVERPASS_URL=https://overpass.example.org/api/interpreter IMPORT_MAX_PER_HOUR=200
 ```
 
 In the dashboard:
@@ -56,7 +65,7 @@ npm i -g eas-cli && eas login
 eas init                                         # once, links the Expo project
 eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value https://<prod-ref>.supabase.co --visibility plaintext
 eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <prod anon key> --visibility plaintext
-eas env:create --environment production --name EXPO_PUBLIC_POLICY_VERSION --value 2026-10-28 --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_POLICY_VERSION --value 2026-10-29 --visibility plaintext
 ```
 
 The anon / publishable key is public by design (it ships in the app; RLS protects the
