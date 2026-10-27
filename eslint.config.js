@@ -9,4 +9,23 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*', 'design/*', 'supabase/functions/**', '.expo/*'],
   },
+  {
+    // Privacy boundary: only one module may read the device position.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/features/location/privacyBoundary.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'expo-location',
+              message:
+                'Only src/features/location/privacyBoundary.ts may read the position. Use acquireCoarseFix().',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
