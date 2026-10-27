@@ -19,6 +19,7 @@ import { Toast } from '@/components/ui';
 import { DEFAULT_CITY, nearestCity, searchCities, type City } from '@/data/cities';
 import { useConsent } from '@/features/consent/consent';
 import { useDensity } from '@/features/density/useDensity';
+import { useSharing } from '@/features/sharing/sharing';
 import {
   acquireCoarseFix,
   permissionState,
@@ -44,7 +45,9 @@ export function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const consent = useConsent();
-  const density = useDensity();
+  const [center, setCenter] = useState({ lat: DEFAULT_CITY.lat, lng: DEFAULT_CITY.lng });
+  const density = useDensity(center);
+  const sharingState = useSharing();
   const now = useNow(10_000);
   const mapStyle = useMapStyle(theme.scheme);
 
@@ -52,7 +55,6 @@ export function MapScreen() {
   const cameraRef = useRef<CameraRef>(null);
 
   const [permission, setPermission] = useState<PermissionState>('undetermined');
-  const [myCell, setMyCell] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [bearing, setBearing] = useState(0);
   const [bounds, setBounds] = useState<Bounds | null>(null);
@@ -65,7 +67,7 @@ export function MapScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const sharing = consent.location && permission === 'granted';
+  const sharing = consent.location && sharingState.status === 'sharing';
 
   const say = useCallback(
     (message: string) => {
@@ -101,7 +103,6 @@ export function MapScreen() {
       setLocating(true);
       try {
         const fix = await acquireCoarseFix();
-        setMyCell(fix.cell);
         flyTo(cellCenter(fix.cell), LOCATE_ZOOM);
       } catch {
         if (!silent) say('Location unavailable. Search for a city instead.');
@@ -122,8 +123,8 @@ export function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The "me" dot only exists while sharing is on.
-  const shownCell = consent.location ? myCell : null;
+  // The "me" dot marks the cell of the last accepted ping, only while sharing.
+  const shownCell = sharing ? sharingState.myCell : null;
 
   const filtered = useMemo(
     () =>
@@ -152,6 +153,7 @@ export function MapScreen() {
     const { center, bounds: b, bearing: br } = e.nativeEvent;
     setBearing(br);
     setBounds(b);
+    setCenter({ lat: center[1], lng: center[0] });
     const near = nearestCity(center[1], center[0]);
     setCity((prev) => (prev.name === near.name ? prev : near));
   }, []);

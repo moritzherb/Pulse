@@ -3,8 +3,11 @@ import { Pressable, ScrollView, View } from 'react-native';
 import Animated, { FadeIn, SlideInDown, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GroupedList, StrikePill, Text } from '@/components/ui';
+import { GroupedList, StrikePill, Text, ToggleRow } from '@/components/ui';
 import { useConsent } from '@/features/consent/consent';
+import { simulatedFeedStore, useSimulatedFeed } from '@/features/density/useDensity';
+import { useSharing } from '@/features/sharing/sharing';
+import { ago, useNow } from '@/lib/time';
 import { useTheme } from '@/theme';
 
 const NEVER_SENT = ['your address', 'your name', 'your phone', 'any history'];
@@ -20,13 +23,21 @@ export default function Inspector() {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
 
-  const summary = consent.location
-    ? 'Your phone says “someone is in this 460 m area”, nothing else. It is forgotten after 20 minutes.'
-    : 'Nothing is being sent right now. You are only looking.';
+  const sharing = useSharing();
+  const simulated = useSimulatedFeed();
+  const now = useNow(5_000);
+
+  const sending = consent.location && sharing.status === 'sharing';
+  const summary =
+    sharing.status === 'paused'
+      ? 'You are in an area you marked private. Nothing is being sent from here.'
+      : sending
+        ? 'Your phone says “someone is in this 460 m area”, nothing else. It is forgotten after 20 minutes.'
+        : 'Nothing is being sent right now. You are only looking.';
 
   const rows = [
-    { k: 'Your area', v: consent.location ? 'a 460 m area' : 'not shared' },
-    { k: 'Last update', v: 'never' },
+    { k: 'Your area', v: sending && sharing.myCell ? 'a 460 m area' : 'not shared' },
+    { k: 'Last update', v: ago(sharing.lastSentAt, now) },
     { k: 'Kept for', v: '20 minutes' },
   ];
 
@@ -114,6 +125,17 @@ export default function Inspector() {
               <StrikePill key={n} label={n} />
             ))}
           </View>
+          {__DEV__ && (
+            // Development builds only (design: "Simulated feed").
+            <GroupedList style={{ marginTop: 16 }}>
+              <ToggleRow
+                label="Simulated feed"
+                detail="Prototype data. Off shows the real feed, or the empty state."
+                value={simulated}
+                onChange={(v) => simulatedFeedStore.set(v)}
+              />
+            </GroupedList>
+          )}
         </ScrollView>
       </Animated.View>
     </Animated.View>

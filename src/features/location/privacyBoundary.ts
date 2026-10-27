@@ -62,3 +62,29 @@ export async function acquireCoarseFix(): Promise<CoarseFix> {
   }
   return { cell, privateKey, heldMs: Date.now() - t0, acquiredAt: Date.now() };
 }
+
+/**
+ * Watch for the phone moving into a different cell while the app is open.
+ * Positions are converted inside the callback and dropped; the listener only
+ * ever hears about a new cell id. Foreground only.
+ */
+export async function watchCoarseCell(onCell: (fix: CoarseFix) => void): Promise<() => void> {
+  let lastCell: string | null = null;
+  const subscription = await Location.watchPositionAsync(
+    { accuracy: Location.Accuracy.Balanced, distanceInterval: 150, timeInterval: 60_000 },
+    (position) => {
+      const t0 = Date.now();
+      let cell: string;
+      let privateKey: string;
+      {
+        const { latitude, longitude } = position.coords;
+        cell = latLngToCell(latitude, longitude, H3_RESOLUTION);
+        privateKey = latLngToCell(latitude, longitude, PRIVATE_RESOLUTION);
+      }
+      if (cell === lastCell) return;
+      lastCell = cell;
+      onCell({ cell, privateKey, heldMs: Date.now() - t0, acquiredAt: Date.now() });
+    },
+  );
+  return () => subscription.remove();
+}

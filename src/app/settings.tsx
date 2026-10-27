@@ -14,7 +14,7 @@ import {
   Text,
   Toast,
   ToggleRow,
-  type SharingStatus,
+  type SharingStatus as CardStatus,
 } from '@/components/ui';
 import {
   POLICY_VERSION,
@@ -23,38 +23,72 @@ import {
   useConsent,
 } from '@/features/consent/consent';
 import {
+  deleteIdentity,
+  ROTATE_AFTER_MS,
+  rotateIdentity,
+  useIdentity,
+} from '@/features/identity/identity';
+import {
   acquireCoarseFix,
   permissionState,
   requestPermission,
-  type PermissionState,
 } from '@/features/location/privacyBoundary';
 import {
   addPrivateZone,
   clearPrivateZones,
-  isPrivate,
   removePrivateZone,
   usePrivateZones,
 } from '@/features/location/privateZones';
+import {
+  deleteSentPings,
+  refreshOutstanding,
+  resetSharing,
+  sendPing,
+  useSharing,
+  withdraw,
+  type SharingStatus,
+} from '@/features/sharing/sharing';
 import { clearAll } from '@/lib/storage';
 import { useTheme, useThemePreference, type ThemePreference } from '@/theme';
 
-/**
- * Settings (design). Status, consent, private areas, rotating ID, delete.
- * The rotating ID and server-side deletion are wired up in Phase 2; until
- * then nothing has ever been sent, and the screen says so.
- */
+const STATUS_COPY: Record<SharingStatus, { card: CardStatus; title: string; detail: string }> = {
+  sharing: {
+    card: 'sharing',
+    title: 'Sharing on',
+    detail: 'A cell every 3 min while the app is open. Each one expires within 20 min.',
+  },
+  off: { card: 'off', title: 'Sharing off', detail: 'Nothing is sent. Full map access.' },
+  paused: {
+    card: 'paused',
+    title: 'Paused: private area',
+    detail: 'You marked this area private, so nothing is sent from here.',
+  },
+  unavailable: {
+    card: 'unavailable',
+    title: 'Location unavailable',
+    detail: 'Location is off for Pulse in system settings. Nothing is sent.',
+  },
+  offline: {
+    card: 'unavailable',
+    title: 'Sharing on, not connected',
+    detail: 'The server could not be reached. Pulse tries again every 3 min.',
+  },
+};
+
+/** Settings (design): status, consent, private areas, appearance, rotating ID, delete. */
 export default function Settings() {
   const router = useRouter();
-  const consent = useConsent();
-  const zones = usePrivateZones();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [permission, setPermission] = useState<PermissionState>('undetermined');
-  const [inPrivateArea, setInPrivateArea] = useState(false);
+  const consent = useConsent();
+  const sharing = useSharing();
+  const identity = useIdentity();
+  const zones = usePrivateZones();
   const [toast, setToast] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    permissionState().then(setPermission);
+    refreshOutstanding();
   }, []);
 
   const say = (m: string) => {
@@ -62,64 +96,87 @@ export default function Settings() {
     setTimeout(() => setToast(null), theme.motion.toastDuration);
   };
 
-  const status: SharingStatus = inPrivateArea
-    ? 'paused'
-    : consent.location && permission === 'granted'
-      ? 'sharing'
-      : permission === 'denied'
-        ? 'unavailable'
-        : 'off';
-
-  const statusCopy: Record<SharingStatus, [string, string]> = {
-    sharing: [
-      'Sharing on',
-      'A cell every 3 min while the app is open. Each one expires after 20 min.',
-    ],
-    off: ['Sharing off', 'Nothing is sent. Full map access.'],
-    paused: ['Paused: private area', 'You marked this area private, so nothing is sent from here.'],
-    unavailable: ['Location unavailable', 'Nothing is sent. Full map access.'],
-  };
+  const status = consent.location ? sharing.status : 'off';
+  const copy = STATUS_COPY[status];
+  const outstandingCopy =
+    status === 'sharing' && sharing.outstanding > 0
+      ? `A cell every 3 min. ${sharing.outstanding} row(s), all expiring within 20 min.`
+      : copy.detail;
 
   const toggleSharing = async (on: boolean) => {
     if (on) {
-      const state = permission === 'granted' ? permission : await requestPermission();
-      setPermission(state);
+      const state = (await permissionState()) === 'granted' ? 'granted' : await requestPermission();
       setLocationSharing(true);
       if (state !== 'granted')
         say('Location is off for Pulse in system settings, so nothing is sent.');
-    } else {
-      setLocationSharing(false);
-      say('Sharing off. Nothing more will be sent.');
+      return;
+    }
+    setLocationSharing(false);
+    try {
+      const n = await withdraw();
+      say(`Sharing off. Your outstanding pings were deleted${n ? ` (${n} removed)` : ''}.`);
+    } catch {
+      say('Sharing off. Deleting sent pings failed; they expire within 20 minutes anyway.');
     }
   };
 
   const markPrivate = async () => {
     try {
-      if (permission !== 'granted') {
-        const state = await requestPermission();
-        setPermission(state);
-        if (state !== 'granted') throw new Error('denied');
+      if ((await permissionState()) !== 'granted' && (await requestPermission()) !== 'granted') {
+        throw new Error('denied');
       }
       const fix = await acquireCoarseFix();
       addPrivateZone(fix.privateKey);
-      setInPrivateArea(isPrivate(fix.privateKey));
-      say('This area is private now. Nothing will be sent from here.');
+      const removed = await deleteSentPings().catch(() => 0);
+      if (consent.location) sendPing(fix); // re-evaluates: now paused
+      say(
+        `This area is private now. Nothing will be sent from here${
+          removed ? `, and ${removed} earlier report(s) were deleted` : ''
+        }.`,
+      );
     } catch {
       say('Location unavailable, so this area can’t be marked.');
     }
   };
 
+  const rotate = async () => {
+    if (!identity.userId) {
+      say('No ID exists yet, so there is nothing to rotate.');
+      return;
+    }
+    try {
+      setBusy(true);
+      await rotateIdentity();
+      await refreshOutstanding();
+      say('New ID issued. Nothing sent before is linked to it.');
+    } catch {
+      say('Couldn’t reach the server. Your ID was not changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const deleteData = async () => {
-    // Phase 2 adds the server call that deletes the anonymous user and every
-    // row linked to it. Locally, everything is wiped and onboarding restarts.
+    try {
+      setBusy(true);
+      // Server first: if it fails, nothing local is wiped and you can retry.
+      await deleteIdentity();
+    } catch {
+      setBusy(false);
+      say('Couldn’t reach the server, so nothing was deleted yet. Try again when online.');
+      return;
+    }
+    resetSharing();
+    clearPrivateZones();
     await clearAll();
     resetConsent();
-    clearPrivateZones();
     router.replace('/onboarding');
   };
 
-  const [title, detail] = statusCopy[status];
   const stamp = consent.location ? `on · ${(consent.locationGrantedAt ?? '').slice(0, 10)}` : 'off';
+  const rotatesOn = identity.createdAt
+    ? new Date(new Date(identity.createdAt).getTime() + ROTATE_AFTER_MS).toISOString().slice(0, 10)
+    : null;
 
   return (
     <View style={{ flex: 1 }}>
@@ -129,7 +186,7 @@ export default function Settings() {
           Settings
         </Text>
 
-        <StatusCard status={status} title={title} detail={detail} />
+        <StatusCard status={copy.card} title={copy.title} detail={outstandingCopy} />
 
         <SectionLabel>Consent</SectionLabel>
         <GroupedList>
@@ -144,7 +201,7 @@ export default function Settings() {
         <SectionLabel>Private areas</SectionLabel>
         <Card>
           <Text variant="footnote" color="secondary">
-            {inPrivateArea
+            {status === 'paused'
               ? 'You are in a private area. Nothing is being sent.'
               : 'Mark where you live or work. It covers about 250 m, small enough that a busy street nearby still counts. The list stays on your phone.'}
           </Text>
@@ -172,10 +229,18 @@ export default function Settings() {
 
         <SectionLabel>Your rotating ID</SectionLabel>
         <Card>
-          <Text variant="monoId">No ID yet</Text>
+          <Text variant="monoId" selectable>
+            {identity.userId ?? 'No ID yet'}
+          </Text>
+          {rotatesOn && (
+            <Text variant="monoSub" color="muted" style={{ paddingTop: 6 }}>
+              rotates {rotatesOn}
+            </Text>
+          )}
           <Text variant="caption" color="tertiary" style={{ paddingTop: 10 }}>
-            A random ID is created the first time you share and replaced every 24 hours. Nothing has
-            been sent from this phone.
+            {identity.userId
+              ? `${sharing.outstanding} row(s) linked to this ID.`
+              : 'A random ID is created the first time you share and replaced every 24 hours. Nothing has been sent from this phone.'}
           </Text>
         </Card>
 
@@ -184,9 +249,16 @@ export default function Settings() {
             label="Rotate my ID now"
             variant="secondary"
             size="compact"
-            onPress={() => say('No ID exists yet, so there is nothing to rotate.')}
+            disabled={busy}
+            onPress={rotate}
           />
-          <Button label="Delete my data now" variant="danger" size="compact" onPress={deleteData} />
+          <Button
+            label="Delete my data now"
+            variant="danger"
+            size="compact"
+            disabled={busy}
+            onPress={deleteData}
+          />
           <Button
             label="What my phone is sending"
             variant="quiet"
