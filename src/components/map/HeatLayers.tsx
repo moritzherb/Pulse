@@ -1,34 +1,31 @@
-import { GeoJSONSource, Images, Layer } from '@maplibre/maplibre-react-native';
+import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import { useMemo } from 'react';
 
-import { cellCenter, cellsToPoints, cellsToPolygons } from '@/lib/h3';
 import { heatLevels, heatmapDensityStops, useTheme } from '@/theme';
-import type { LiveCell } from '@shared/types.ts';
+import type { LivePlace } from '@shared/types.ts';
 
-import { useLevelCrossfade } from './levelCrossfade';
 import { usePulse } from './usePulse';
 
 /**
- * Crowd layers.
+ * Crowd layers. The heat sits on the places themselves: each live place adds
+ * a soft blob whose strength follows its level, so a packed café glows red
+ * and the street outside stays clear. From street zoom the blob keeps the
+ * same size on the ground (see blobRadius), so the city view
+ * shows the hot spots and the street view shows which place is busy.
  *
- * - City zoom (< 13): the design's soft heatmap, built from cell centres.
- * - Street zoom (>= 13): H3 hexagons in the level colour, a pattern per
- *   level (so colour is never the only cue), a white hairline, and a slow
- *   breathing glow on Busy and Packed cells.
- * The two cross-fade between zoom 12.4 and 13.4. When a cell changes level,
- * its old colour fades out over the new one (see levelCrossfade.ts).
+ * From street zoom, each place also gets a dot in its level colour and its
+ * name (busy places first), and the selected place a ring. The heatmap
+ * breathes slowly while anything is Busy or Packed.
  */
 
-const FADE_FROM = 12.4;
-const FADE_TO = 13.4;
-
-const patternImages = {
-  'pulse-dots': require('../../../assets/map/pattern-dots.png'),
-  'pulse-lines': require('../../../assets/map/pattern-lines.png'),
-  'pulse-cross': require('../../../assets/map/pattern-cross.png'),
+/** Level as heatmap weight: one place on its own maps to its level's colour on the ramp. */
+const LEVEL_WEIGHT: Record<LivePlace['level'], number> = {
+  quiet: 0.3,
+  moderate: 0.5,
+  busy: 0.78,
+  packed: 1,
 };
 
-/** Level colour as a data-driven expression. */
 const levelColor = [
   'match',
   ['get', 'level'],
@@ -41,157 +38,147 @@ const levelColor = [
   heatLevels.quiet.color,
 ] as const;
 
-/** Fade a value in as the camera crosses into street zoom. */
-const streetOnly = (value: unknown) => [
+/**
+ * Blob radius in pixels: about 90 m on the ground from street zoom on (the
+ * visible glow is about half that), and never smaller than a few pixels so
+ * hot spots still show at city zoom.
+ */
+const blobRadius = [
   'interpolate',
-  ['linear'],
+  ['exponential', 2],
   ['zoom'],
-  FADE_FROM,
-  0,
-  FADE_TO,
-  value,
+  10,
+  6,
+  12,
+  9,
+  14,
+  16,
+  16,
+  56,
+  18,
+  225,
 ];
 
 export interface HeatLayersProps {
-  cells: readonly LiveCell[];
-  selectedCell: string | null;
-  onCellPress: (cell: string) => void;
+  places: readonly LivePlace[];
+  selectedId: number | null;
+  onPlacePress: (id: number) => void;
 }
 
-export function HeatLayers({ cells, selectedCell, onCellPress }: HeatLayersProps) {
+export function HeatLayers({ places, selectedId, onPlacePress }: HeatLayersProps) {
   const { colors, motion } = useTheme();
-  const { on: pulseOn } = usePulse(motion.cellPulsePeriod);
-  const half = motion.cellPulsePeriod / 2;
+  const anyBusy = places.some((p) => p.level === 'busy' || p.level === 'packed');
+  const { on: pulseOn } = usePulse(motion.placePulsePeriod, anyBusy);
+  const half = motion.placePulsePeriod / 2;
 
-  const polygons = useMemo(() => cellsToPolygons(cells), [cells]);
-  const points = useMemo(() => cellsToPoints(cells), [cells]);
-  const ghost = useLevelCrossfade(cells);
-  const ghostPolygons = useMemo(() => cellsToPolygons(ghost.cells), [ghost.cells]);
+  const points = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
+    () => ({
+      type: 'FeatureCollection',
+      features: places.map((p) => ({
+        type: 'Feature',
+        id: p.id,
+        properties: {
+          id: p.id,
+          name: p.name,
+          level: p.level,
+          weight: LEVEL_WEIGHT[p.level],
+          // Busier places win label collisions.
+          rank: { quiet: 1, moderate: 2, busy: 3, packed: 4 }[p.level],
+        },
+        geometry: { type: 'Point', coordinates: [p.lng, p.lat] },
+      })),
+    }),
+    [places],
+  );
 
   return (
-    <>
-      <Images images={patternImages} />
-
-      <GeoJSONSource id="heat-points" data={points}>
-        <Layer
-          id="heat-blur"
-          type="heatmap"
-          paint={{
-            'heatmap-weight': ['interpolate', ['linear'], ['get', 'devices'], 0, 0.15, 50, 1],
-            // Breathes with the pulse so the city view feels alive too.
-            'heatmap-intensity': pulseOn ? 1.22 : 1.1,
-            'heatmap-intensity-transition': { duration: half, delay: 0 },
-            'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 22, 12, 44, 15, 90],
-            'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], FADE_FROM, 0.78, FADE_TO, 0],
-            'heatmap-color': [
-              'interpolate',
-              ['linear'],
-              ['heatmap-density'],
-              ...heatmapDensityStops.flat(),
-            ] as never,
-          }}
-        />
-      </GeoJSONSource>
-
-      <GeoJSONSource
-        id="heat-cells"
-        data={polygons}
-        onPress={(e) => {
-          const cell = e.nativeEvent.features[0]?.properties?.cell;
-          if (typeof cell === 'string') onCellPress(cell);
+    <GeoJSONSource
+      id="places"
+      data={points}
+      hitbox={{ top: 14, right: 14, bottom: 14, left: 14 }}
+      onPress={(e) => {
+        const id = e.nativeEvent.features[0]?.properties?.id;
+        if (typeof id === 'number') onPlacePress(id);
+      }}
+    >
+      <Layer
+        id="place-heat"
+        type="heatmap"
+        paint={{
+          'heatmap-weight': ['get', 'weight'] as never,
+          'heatmap-intensity': pulseOn ? 1.12 : 1,
+          'heatmap-intensity-transition': { duration: half, delay: 0 },
+          'heatmap-radius': blobRadius as never,
+          'heatmap-opacity': 0.85,
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            ...heatmapDensityStops.flat(),
+          ] as never,
         }}
-      >
-        <Layer
-          id="hex-fill"
-          type="fill"
-          paint={{ 'fill-color': levelColor as never, 'fill-opacity': streetOnly(0.55) as never }}
-        />
-        <Layer
-          id="hex-pattern"
-          type="fill"
-          filter={['!=', ['get', 'level'], 'quiet']}
-          paint={{
-            'fill-pattern': [
-              'match',
-              ['get', 'level'],
-              'packed',
-              'pulse-cross',
-              'busy',
-              'pulse-lines',
-              'pulse-dots',
-            ] as never,
-            'fill-opacity': streetOnly(0.9) as never,
-          }}
-        />
-        <Layer
-          id="hex-pulse"
-          type="fill"
-          filter={['in', ['get', 'level'], ['literal', ['busy', 'packed']]]}
-          paint={{
-            'fill-color': levelColor as never,
-            'fill-opacity': streetOnly([
-              'match',
-              ['get', 'level'],
-              'packed',
-              pulseOn ? 0.34 : 0,
-              pulseOn ? 0.2 : 0,
-            ]) as never,
-            'fill-opacity-transition': { duration: half, delay: 0 },
-          }}
-        />
-        <Layer
-          id="hex-line"
-          type="line"
-          paint={{
-            'line-color': colors.map.hexStroke,
-            'line-width': 1,
-            'line-opacity': streetOnly(0.8) as never,
-          }}
-        />
-        <Layer
-          id="hex-selected"
-          type="line"
-          filter={['==', ['get', 'cell'], selectedCell ?? '']}
-          paint={{ 'line-color': colors.text.primary, 'line-width': 2 }}
-        />
-      </GeoJSONSource>
-
-      <GeoJSONSource id="heat-ghost" data={ghostPolygons}>
-        <Layer
-          id="hex-ghost"
-          type="fill"
-          beforeId="hex-pattern"
-          paint={{
-            'fill-color': levelColor as never,
-            'fill-opacity': streetOnly(ghost.fading ? 0 : 0.55) as never,
-            'fill-opacity-transition': {
-              duration: ghost.fading ? motion.levelChange : 0,
-              delay: 0,
-            },
-          }}
-        />
-      </GeoJSONSource>
-    </>
+      />
+      <Layer
+        id="place-dot"
+        type="circle"
+        minzoom={13}
+        paint={{
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.5, 17, 5] as never,
+          'circle-color': levelColor as never,
+          'circle-color-transition': { duration: motion.levelChange, delay: 0 },
+          'circle-stroke-color': colors.map.placeStroke,
+          'circle-stroke-width': 1.5,
+          'circle-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 1] as never,
+          'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 1] as never,
+        }}
+      />
+      <Layer
+        id="place-selected"
+        type="circle"
+        filter={['==', ['get', 'id'], selectedId ?? -1]}
+        paint={{
+          'circle-radius': 11,
+          'circle-color': 'rgba(0,0,0,0)',
+          'circle-stroke-color': colors.text.primary,
+          'circle-stroke-width': 2,
+        }}
+      />
+      <Layer
+        id="place-label"
+        type="symbol"
+        minzoom={14}
+        filter={['any', ['>=', ['zoom'], 15.5], ['>=', ['get', 'rank'], 3]] as never}
+        layout={{
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 11.5,
+          'text-anchor': 'left',
+          'text-offset': [0.8, 0],
+          'text-max-width': 9,
+          'text-optional': true,
+          'symbol-sort-key': ['-', 0, ['get', 'rank']] as never,
+        }}
+        paint={{
+          'text-color': colors.text.body,
+          'text-halo-color': colors.surface.base,
+          'text-halo-width': 1.4,
+        }}
+      />
+    </GeoJSONSource>
   );
 }
 
-/** The phone's own coarse cell (centre of the last reported cell), only while sharing. */
-export function MeDot({ cell }: { cell: string | null }) {
+/** The place the phone is at (its public position), only while sharing. */
+export function MeDot({ at }: { at: [number, number] | null }) {
   const { colors } = useTheme();
   const me = useMemo<GeoJSON.FeatureCollection>(
     () => ({
       type: 'FeatureCollection',
-      features: cell
-        ? [
-            {
-              type: 'Feature',
-              properties: {},
-              geometry: { type: 'Point', coordinates: cellCenter(cell) },
-            },
-          ]
+      features: at
+        ? [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: at } }]
         : [],
     }),
-    [cell],
+    [at],
   );
   return (
     <GeoJSONSource id="me" data={me}>

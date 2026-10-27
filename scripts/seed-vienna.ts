@@ -11,26 +11,27 @@
  * What it writes, and how it is marked so it can never be mistaken for real data:
  *   - auth.users      synthetic anonymous users, raw_app_meta_data.synthetic = true
  *   - pings           from those users only, through the same tables real pings use
- *   - places, venues  one place per hotspot, source = 'seed'; and, only while no OSM venues
- *                     are imported, one hidden venue (rank 0) per cell for its category,
- *                     named "... (simulated)"
- *   - cell_hourly     k-anonymous hourly history, with snapshot_runs
+ *   - venues          only for simulated places that have no OpenStreetMap match yet
+ *                     (scripts/import-osm.ts), with source = 'seed'
+ *   - venue_hourly    k-anonymous hourly history, with snapshot_runs, then usual peaks
  *
- * Live mode writes raw pings and then runs public.refresh_live_cells(), so the
- * real aggregation, k-anonymity and Realtime broadcast are exercised end to end.
- * Uses a direct Postgres connection (Supabase: Settings -> Database -> Connection
- * string). Never point it at a production project.
+ * The crowd model (src/features/density/simulation.ts) puts about 50 well-known
+ * Vienna places on the map. When OSM places are imported, each simulated place
+ * is matched to its real counterpart by name, and 200 more imported places get
+ * a smaller simulated crowd, so the whole city has something on it.
+ *
+ * Live mode writes raw pings and then runs public.refresh_live_venues(), so the
+ * real aggregation, k-anonymity, levels and Realtime broadcast are exercised
+ * end to end. Uses a direct Postgres connection (Supabase: Connect -> Session
+ * pooler). Never point it at a production project.
  */
+import { latLngToCell } from 'h3-js';
 import postgres from 'postgres';
 
 import { K_ANONYMITY } from '../supabase/functions/_shared/levels.ts';
+import { H3_RESOLUTION, REGION_RESOLUTION } from '../supabase/functions/_shared/types.ts';
 
-import {
-  expectedDevices,
-  HOTSPOTS,
-  simulatedCells,
-  type SimCell,
-} from '../src/features/density/simulation.ts';
+import { expectedDevices, SIM_VENUES, type Category } from '../src/features/density/simulation.ts';
 
 // ------------------------------------------------------------------ args ---
 
@@ -64,102 +65,157 @@ if (!isLocal && !flag('yes')) {
 const sql = postgres(url, { prepare: false, onnotice: () => {}, max: 4 });
 
 // ----------------------------------------------------------------- model ---
-// The crowd model lives in src/features/density/simulation.ts, shared with the
-// app's simulated feed.
 
-type ModelCell = SimCell;
-const buildModel = simulatedCells;
-const expected = expectedDevices;
+/** A place in the database with a simulated crowd. */
+interface ModelVenue {
+  id: number;
+  name: string;
+  category: Category;
+  /** Devices at the busiest hour of the week. */
+  peak: number;
+  /** Most devices it ever needs, with noise headroom: its slice of the user pool. */
+  capacity: number;
+}
+
+/** How many extra imported places get a simulated crowd. */
+const EXTRA_PLACES = 200;
+
+/** Typical peak crowd for imported places, by kind. */
+const PEAK_BY_KIND: Record<string, number> = {
+  restaurant: 10,
+  café: 9,
+  'fast food': 8,
+  bar: 11,
+  pub: 11,
+  club: 25,
+  museum: 20,
+  gallery: 8,
+  park: 18,
+  garden: 10,
+  square: 22,
+  church: 12,
+  market: 20,
+  theatre: 18,
+  cinema: 15,
+};
 
 const roundToFive = (n: number) => Math.max(K_ANONYMITY, Math.round(n / 5) * 5);
+const withCapacity = (v: Omit<ModelVenue, 'capacity'>): ModelVenue => ({
+  ...v,
+  capacity: Math.ceil(v.peak * 1.7 * 1.15) + 1, // night spill x noise
+});
+
+/**
+ * The simulated places as database rows. With `create`, simulated places that
+ * have no OSM match are inserted as seed venues; without it (for --reset),
+ * they are only looked up. Deterministic, so --reset finds the same places.
+ */
+async function buildModel(create: boolean): Promise<ModelVenue[]> {
+  const model: ModelVenue[] = [];
+  const used = new Set<number>();
+  let inserted = 0;
+
+  for (const v of SIM_VENUES) {
+    const point = `SRID=4326;POINT(${v.lng} ${v.lat})`;
+    const [match] = await sql<{ id: number }[]>`
+      select id from public.venues
+      where source <> 'seed'
+        and (lower(name) = lower(${v.name}) or name ilike ${'%' + v.name + '%'})
+        and region is not null
+        and extensions.st_dwithin(geom, ${point}::extensions.geography, 400)
+      order by lower(name) = lower(${v.name}) desc,
+               geom operator(extensions.<->) ${point}::extensions.geography
+      limit 1`;
+    let id = match?.id;
+    if (id === undefined) {
+      const [seed] = await sql<{ id: number }[]>`
+        select id from public.venues where source = 'seed' and source_id = ${v.name}`;
+      id = seed?.id;
+    }
+    if (id === undefined && create) {
+      const [row] = await sql<{ id: number }[]>`
+        insert into public.venues
+          (name, category, kind, rank, geom, cell, region, radius_m, area_m2, source, source_id)
+        values (
+          ${v.name}, ${v.category}, ${v.kind}, 2, ${point},
+          ${latLngToCell(v.lat, v.lng, H3_RESOLUTION)}, ${latLngToCell(v.lat, v.lng, REGION_RESOLUTION)},
+          ${v.radiusM}, ${Math.round(Math.PI * v.radiusM * v.radiusM)}, 'seed', ${v.name})
+        returning id`;
+      id = row!.id;
+      inserted += 1;
+    }
+    if (id === undefined || used.has(id)) continue;
+    used.add(id);
+    model.push(withCapacity({ id, name: v.name, category: v.category, peak: v.peak }));
+  }
+
+  const extras = await sql<
+    { id: number; name: string; category: Category; kind: string | null; rank: number }[]
+  >`
+    select id, name, category, kind, rank from public.venues
+    where source = 'osm' and rank > 0 and region is not null and not (id = any(${[...used]}))
+    order by rank desc, md5(source_id)
+    limit ${EXTRA_PLACES}`;
+  for (const e of extras) {
+    const base = PEAK_BY_KIND[e.kind ?? ''] ?? 10;
+    const peak = Math.round(base * (e.rank === 3 ? 1.6 : e.rank === 2 ? 1.2 : 1));
+    model.push(withCapacity({ id: e.id, name: e.name, category: e.category, peak }));
+  }
+
+  if (create) {
+    console.log(
+      `Model: ${model.length} places (${SIM_VENUES.length - inserted} of ${SIM_VENUES.length} ` +
+        `simulated places matched to imported ones, ${inserted} added, ${extras.length} extra).`,
+    );
+  }
+  return model;
+}
 
 // -------------------------------------------------------------- database ---
 
 async function assertSchema() {
-  const [row] = await sql<{ ok: boolean }[]>`select to_regclass('public.pings') is not null as ok`;
-  if (!row?.ok) throw new Error('Pulse schema not found. Apply supabase/migrations first.');
+  const [row] = await sql<{ ok: boolean }[]>`
+    select to_regclass('public.live_venues') is not null as ok`;
+  if (!row?.ok) throw new Error('Pulse schema not found or outdated. Run supabase db push first.');
 }
 
 async function reset() {
+  const model = await buildModel(false);
+  const ids = model.map((m) => m.id);
   const users = await sql`
     delete from auth.users where raw_app_meta_data ->> 'synthetic' = 'true' returning id`;
+  const history =
+    await sql`delete from public.venue_hourly where venue_id = any(${ids}) returning venue_id`;
+  await sql`update public.venues set usual_peak = null where id = any(${ids})`;
   const venues = await sql`delete from public.venues where source = 'seed' returning id`;
   const places = await sql`delete from public.places where source = 'seed' returning id`;
-  const cells = buildModel().map((c) => c.cell);
-  const history =
-    await sql`delete from public.cell_hourly where cell = any(${cells}) returning cell`;
-  await sql`select public.refresh_live_cells()`;
+  await sql`select public.refresh_live_venues()`;
   console.log(
-    `Removed ${users.length} synthetic users, ${venues.length} venues, ${places.length} places, ` +
+    `Removed ${users.length} synthetic users, ${venues.length} seed venues, ${places.length} seed places, ` +
       `${history.length} history rows.`,
   );
 }
 
-async function seedStatic(model: ModelCell[]) {
-  const cellRows = model.map((c) => ({
-    cell: c.cell,
-    region: c.region,
-    center: `SRID=4326;POINT(${c.lng} ${c.lat})`,
-  }));
-  await sql`
-    insert into public.cells ${sql(cellRows, 'cell', 'region', 'center')}
-    on conflict (cell) do nothing`;
-
-  const places = HOTSPOTS.map((h) => ({
-    name: h.name,
-    kind: 'area',
-    geom: `SRID=4326;POINT(${h.lng} ${h.lat})`,
-    source: 'seed',
-    source_id: h.name,
-  }));
-  await sql`
-    insert into public.places ${sql(places, 'name', 'kind', 'geom', 'source', 'source_id')}
-    on conflict (source, source_id) do update set name = excluded.name, geom = excluded.geom`;
-
-  // Simulated venues only give cells a category when no real OSM venues are
-  // imported yet (scripts/import-osm.ts). rank 0: never drawn as pins or listed.
-  const [osm] = await sql<{ n: number }[]>`
-    select count(*)::int as n from public.venues where source = 'osm'`;
-  const venues =
-    (osm?.n ?? 0) > 0
-      ? []
-      : model.map((c) => ({
-          name: `${c.main.name} (simulated)`,
-          category: c.main.category,
-          rank: 0,
-          geom: `SRID=4326;POINT(${c.lng} ${c.lat})`,
-          cell: c.cell,
-          source: 'seed',
-          source_id: c.cell,
-        }));
-  if (venues.length > 0) {
-    await sql`
-      insert into public.venues ${sql(venues, 'name', 'category', 'rank', 'geom', 'cell', 'source', 'source_id')}
-      on conflict (source, source_id) do update set name = excluded.name, category = excluded.category`;
-  }
-
-  console.log(`Seeded ${model.length} cells, ${places.length} places, ${venues.length} venues.`);
-}
-
 /**
  * Hourly history, built exactly like snapshot_hourly(): four 15-minute
- * snapshots per hour, each already k-anonymous and rounded to 5.
+ * snapshots per hour, each already k-anonymous and rounded to 5. Then the
+ * usual peaks, so levels are relative to each place right away.
  */
-async function seedHistory(model: ModelCell[], days: number) {
+async function seedHistory(model: ModelVenue[], days: number) {
   if (days <= 0) return;
   const lastHour = new Date();
   lastHour.setUTCMinutes(0, 0, 0);
   const start = new Date(lastHour.getTime() - days * 24 * 3_600_000);
 
   const runs: { hour_start: Date; samples: number }[] = [];
-  let rows: { cell: string; hour_start: Date; devices_sum: number; samples: number }[] = [];
+  let rows: { venue_id: number; hour_start: Date; devices_sum: number; samples: number }[] = [];
   let written = 0;
 
   const flush = async () => {
     if (!rows.length) return;
     await sql`
-      insert into public.cell_hourly ${sql(rows, 'cell', 'hour_start', 'devices_sum', 'samples')}
-      on conflict (cell, hour_start) do update set
+      insert into public.venue_hourly ${sql(rows, 'venue_id', 'hour_start', 'devices_sum', 'samples')}
+      on conflict (venue_id, hour_start) do update set
         devices_sum = excluded.devices_sum, samples = excluded.samples`;
     written += rows.length;
     rows = [];
@@ -168,13 +224,14 @@ async function seedHistory(model: ModelCell[], days: number) {
   for (let t = start.getTime(); t < lastHour.getTime(); t += 3_600_000) {
     const hourStart = new Date(t);
     runs.push({ hour_start: hourStart, samples: 4 });
-    for (const c of model) {
+    for (const v of model) {
       let sum = 0;
       for (let q = 0; q < 4; q++) {
-        const v = expected(c, new Date(t + q * 15 * 60_000));
-        if (v >= K_ANONYMITY) sum += roundToFive(v);
+        const n = expectedDevices(v, new Date(t + q * 15 * 60_000));
+        if (n >= K_ANONYMITY) sum += roundToFive(n);
       }
-      if (sum > 0) rows.push({ cell: c.cell, hour_start: hourStart, devices_sum: sum, samples: 4 });
+      if (sum > 0)
+        rows.push({ venue_id: v.id, hour_start: hourStart, devices_sum: sum, samples: 4 });
     }
     if (rows.length >= 5000) await flush();
   }
@@ -187,7 +244,10 @@ async function seedHistory(model: ModelCell[], days: number) {
       on conflict (hour_start) do update set
         samples = greatest(public.snapshot_runs.samples, excluded.samples)`;
   }
-  console.log(`Backfilled ${days} days of history: ${written} cell-hours.`);
+  const [peaks] = await sql<{ n: number }[]>`select public.refresh_usual_peaks() as n`;
+  console.log(
+    `Backfilled ${days} days of history: ${written} place-hours, ${peaks?.n ?? 0} usual peaks.`,
+  );
 }
 
 /** Auth columns that GoTrue expects to be '' rather than NULL, when present. */
@@ -236,17 +296,17 @@ async function ensurePool(size: number): Promise<string[]> {
 }
 
 /**
- * One minute of simulated activity. Each cell owns a fixed slice of the
+ * One minute of simulated activity. Each place owns a fixed slice of the
  * pool; the first `target` users of the slice are "present" and ping every
  * 3 minutes, staggered. On the first tick the last 15 minutes are backfilled
  * so the map fills immediately.
  */
-async function liveTick(model: ModelCell[], pool: string[], tick: number, backfill: boolean) {
+async function liveTick(model: ModelVenue[], pool: string[], tick: number, backfill: boolean) {
   const now = new Date();
-  const rows: { user_id: string; cell: string; created_at: Date }[] = [];
+  const rows: { user_id: string; venue_id: number; created_at: Date }[] = [];
   let offset = 0;
-  for (const c of model) {
-    const target = Math.min(expected(c, now), c.capacity);
+  for (const v of model) {
+    const target = Math.min(expectedDevices(v, now), v.capacity);
     for (let j = 0; j < target; j++) {
       const user = pool[offset + j];
       if (!user) break;
@@ -256,30 +316,30 @@ async function liveTick(model: ModelCell[], pool: string[], tick: number, backfi
         for (let m = j % PING_EVERY_TICKS; m < 15; m += PING_EVERY_TICKS) {
           rows.push({
             user_id: user,
-            cell: c.cell,
+            venue_id: v.id,
             created_at: new Date(now.getTime() - m * 60_000),
           });
         }
       } else if ((tick + j) % PING_EVERY_TICKS === 0) {
-        rows.push({ user_id: user, cell: c.cell, created_at: now });
+        rows.push({ user_id: user, venue_id: v.id, created_at: now });
       }
     }
-    offset += c.capacity;
+    offset += v.capacity;
   }
   for (let i = 0; i < rows.length; i += 2000) {
     const chunk = rows.slice(i, i + 2000);
-    await sql`insert into public.pings ${sql(chunk, 'user_id', 'cell', 'created_at')}`;
+    await sql`insert into public.pings ${sql(chunk, 'user_id', 'venue_id', 'created_at')}`;
   }
-  await sql`select public.refresh_live_cells()`;
+  await sql`select public.refresh_live_venues()`;
   const [live] = await sql<{ n: number; busy: number }[]>`
-    select count(*)::int as n, count(*) filter (where level >= 3)::int as busy from public.live_cells`;
+    select count(*)::int as n, count(*) filter (where level >= 3)::int as busy from public.live_venues`;
   const clock = now.toLocaleTimeString('de-AT', {
     timeZone: 'Europe/Vienna',
     hour: '2-digit',
     minute: '2-digit',
   });
   console.log(
-    `${clock} Vienna · ${rows.length} pings · ${live?.n ?? 0} live cells (${live?.busy ?? 0} busy or packed)`,
+    `${clock} Vienna · ${rows.length} pings · ${live?.n ?? 0} live places (${live?.busy ?? 0} busy or packed)`,
   );
 }
 
@@ -294,8 +354,7 @@ async function main() {
     return;
   }
 
-  const model = buildModel();
-  await seedStatic(model);
+  const model = await buildModel(true);
   await seedHistory(model, HISTORY_DAYS);
 
   if (!LIVE) {
@@ -303,7 +362,7 @@ async function main() {
     return;
   }
 
-  const poolSize = model.reduce((s, c) => s + c.capacity, 0);
+  const poolSize = model.reduce((sum, v) => sum + v.capacity, 0);
   let pool = await ensurePool(poolSize);
   let tick = 0;
   await liveTick(model, pool, tick, true);

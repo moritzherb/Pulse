@@ -145,7 +145,7 @@ export interface ColorTokens {
     topFade: string;
     meDot: string;
     meStroke: string;
-    hexStroke: string;
+    placeStroke: string;
     compassNeedle: string;
   };
   scrim: string;
@@ -195,7 +195,7 @@ export const lightColors: ColorTokens = {
     topFade: 'linear-gradient(to bottom, rgba(255,255,255,0.92) 30%, rgba(255,255,255,0))',
     meDot: palette.black,
     meStroke: palette.white,
-    hexStroke: palette.white,
+    placeStroke: palette.white,
     compassNeedle: palette.red600,
   },
   scrim: 'rgba(0,0,0,0.32)',
@@ -247,7 +247,7 @@ export const darkColors: ColorTokens = {
     topFade: 'linear-gradient(to bottom, rgba(11,11,12,0.92) 30%, rgba(11,11,12,0))',
     meDot: '#f5f5f6',
     meStroke: '#0b0b0c',
-    hexStroke: '#0b0b0c',
+    placeStroke: '#0b0b0c',
     compassNeedle: '#f97066',
   },
   scrim: 'rgba(0,0,0,0.56)',
@@ -421,10 +421,10 @@ export const motion = {
   /** Toast visible time (design: 4600 ms). */
   toastDuration: 4600,
   // fill-in: the design has no explicit values for these.
-  /** Cross-fade when a cell changes level. */
+  /** Colour change when a place changes level. */
   levelChange: 600,
-  /** One full breath of a Busy / Packed cell. */
-  cellPulsePeriod: 2400,
+  /** One full breath of the heatmap over Busy / Packed places. */
+  placePulsePeriod: 2400,
   /** Press feedback on buttons and rows. */
   press: 120,
 } as const;

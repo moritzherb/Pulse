@@ -5,14 +5,14 @@ import { AppState } from 'react-native';
 import { createStore } from '@/lib/createStore';
 import { isBackendConfigured, supabase } from '@/lib/supabase';
 import { levelFromRank } from '@shared/levels.ts';
-import { REGION_RESOLUTION, type Category, type LiveCell, type Trend } from '@shared/types.ts';
+import { REGION_RESOLUTION, type Category, type LivePlace, type Trend } from '@shared/types.ts';
 
-import { buildMockVienna } from './mockVienna';
+import { buildMockPlaces } from './mockVienna';
 
 /**
- * Live k-anonymous cells around the map centre.
+ * Live k-anonymous places around the map centre.
  *
- * Live: reads live_cells for the ~7 regions (H3 resolution 5, ~8 km) around
+ * Live: reads live_venues for the ~7 regions (H3 resolution 5, ~8 km) around
  * the centre, then applies Realtime broadcasts ("region:<id>") as they come.
  * A heartbeat ("pulse:tick") drives the "updated Xs ago" label. Re-reads on
  * foreground and every 5 minutes as a safety net.
@@ -36,7 +36,7 @@ export function useSimulatedFeed(): boolean {
 }
 
 export interface DensitySnapshot {
-  cells: LiveCell[];
+  places: LivePlace[];
   /** Time of the last aggregation run we know of (ms since epoch). */
   updatedAt: number | null;
   source: 'mock' | 'live';
@@ -44,25 +44,32 @@ export interface DensitySnapshot {
   offline: boolean;
 }
 
+/** A live_venues row, or one upsert of a Realtime broadcast (which names the id `id`). */
 interface Row {
-  cell: string;
-  region: string;
+  venue_id?: number;
+  id?: number;
+  name: string;
+  category: string;
+  kind: string | null;
+  lng: number;
+  lat: number;
   devices: number;
   level: number;
   trend: number;
-  label: string | null;
-  category: string | null;
   updated_at?: string;
 }
 
-function toLiveCell(r: Row, at: string): LiveCell {
+function toLivePlace(r: Row, at: string): LivePlace {
   return {
-    cell: r.cell,
+    id: (r.venue_id ?? r.id)!,
+    name: r.name,
+    category: r.category as Category,
+    kind: r.kind,
+    lng: r.lng,
+    lat: r.lat,
     devices: r.devices,
     level: levelFromRank(r.level),
     trend: Math.sign(r.trend) as Trend,
-    category: (r.category as Category | null) ?? null,
-    label: r.label,
     updatedAt: r.updated_at ?? at,
   };
 }
@@ -75,14 +82,14 @@ export function regionsAround(lat: number, lng: number): string[] {
 export function useDensity(center: { lat: number; lng: number }): DensitySnapshot {
   const simulated = useSimulatedFeed();
   const regionKey = regionsAround(center.lat, center.lng).join(',');
-  const live = useLiveCells(simulated ? null : regionKey);
-  const mock = useMockCells(simulated);
+  const live = useLivePlaces(simulated ? null : regionKey);
+  const mock = useMockPlaces(simulated);
   return simulated ? mock : live;
 }
 
-function useMockCells(enabled: boolean): DensitySnapshot {
+function useMockPlaces(enabled: boolean): DensitySnapshot {
   const [snapshot, setSnapshot] = useState<DensitySnapshot>(() => ({
-    cells: buildMockVienna(),
+    places: buildMockPlaces(),
     updatedAt: Date.now(),
     source: 'mock',
     offline: false,
@@ -92,7 +99,7 @@ function useMockCells(enabled: boolean): DensitySnapshot {
     const id = setInterval(
       () =>
         setSnapshot({
-          cells: buildMockVienna(),
+          places: buildMockPlaces(),
           updatedAt: Date.now(),
           source: 'mock',
           offline: false,
@@ -104,8 +111,8 @@ function useMockCells(enabled: boolean): DensitySnapshot {
   return snapshot;
 }
 
-function useLiveCells(regionKey: string | null): DensitySnapshot {
-  const [byCell, setByCell] = useState<Map<string, LiveCell>>(new Map());
+function useLivePlaces(regionKey: string | null): DensitySnapshot {
+  const [byId, setById] = useState<Map<number, LivePlace>>(new Map());
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [offline, setOffline] = useState(false);
   const regionsRef = useRef<string[]>([]);
@@ -119,20 +126,21 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
 
     const load = async () => {
       const { data, error } = await client
-        .from('live_cells')
-        .select('cell, region, devices, level, trend, label, category, updated_at')
+        .from('live_venues')
+        .select('venue_id, name, category, kind, lng, lat, devices, level, trend, updated_at')
         .in('region', regions);
       if (cancelled) return;
       setOffline(Boolean(error) || !data);
       if (error || !data) return;
       const now = new Date().toISOString();
-      const next = new Map<string, LiveCell>();
+      const next = new Map<number, LivePlace>();
       let newest = 0;
       for (const r of data as Row[]) {
-        next.set(r.cell, toLiveCell(r, now));
+        const p = toLivePlace(r, now);
+        next.set(p.id, p);
         if (r.updated_at) newest = Math.max(newest, Date.parse(r.updated_at));
       }
-      setByCell(next);
+      setById(next);
       setUpdatedAt((prev) => Math.max(prev ?? 0, newest) || Date.now());
     };
 
@@ -141,21 +149,23 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
     const channels = regions.map((region) =>
       client
         .channel(`region:${region}`, { config: { private: false } })
-        .on('broadcast', { event: 'cells' }, ({ payload }) => {
+        .on('broadcast', { event: 'places' }, ({ payload }) => {
           const {
             upserts = [],
             removed = [],
             at,
           } = payload as {
             upserts?: Row[];
-            removed?: string[];
+            removed?: number[];
             at?: string;
           };
-          setByCell((prev) => {
+          setById((prev) => {
             const next = new Map(prev);
-            for (const cell of removed) next.delete(cell);
-            for (const r of upserts)
-              next.set(r.cell, toLiveCell(r, at ?? new Date().toISOString()));
+            for (const id of removed) next.delete(id);
+            for (const r of upserts) {
+              const p = toLivePlace(r, at ?? new Date().toISOString());
+              next.set(p.id, p);
+            }
             return next;
           });
           if (at) setUpdatedAt(Date.parse(at));
@@ -183,7 +193,7 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
     };
   }, [regionKey]);
 
-  const cells = useMemo(() => [...byCell.values()].sort((a, b) => b.devices - a.devices), [byCell]);
+  const places = useMemo(() => [...byId.values()].sort((a, b) => b.devices - a.devices), [byId]);
   // No backend configured (a misconfigured release build) reads as offline.
-  return { cells, updatedAt, source: 'live', offline: offline || !supabase };
+  return { places, updatedAt, source: 'live', offline: offline || !supabase };
 }

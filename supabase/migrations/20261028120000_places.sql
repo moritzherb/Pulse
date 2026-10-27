@@ -426,8 +426,10 @@ grant execute on function public.retention_status() to service_role;
 -- Outlines of the places in one region, for matching on the phone. Public
 -- OpenStreetMap data, so this runs with the caller's rights. The phone asks
 -- for the region (~250 km²) it is in, nothing finer.
---   circles:  [id, lng, lat, radius_m]
---   polygons: [id, area_m2, MultiPolygon coordinates]   (simplified to ~2 m)
+--   circles:  [id, lng, lat, radius_m, name]
+--   polygons: [id, area_m2, MultiPolygon coordinates, name]   (simplified to ~2 m)
+-- Names let the phone say where it is ("You're at Café Central") without
+-- asking the server.
 create or replace function public.venue_shapes(p_region text)
 returns jsonb
 language sql
@@ -442,7 +444,8 @@ as $$
         v.id,
         round(extensions.st_x(v.geom::extensions.geometry)::numeric, 6),
         round(extensions.st_y(v.geom::extensions.geometry)::numeric, 6),
-        v.radius_m))
+        v.radius_m,
+        v.name))
       from public.venues v
       where v.region = p_region and v.shape is null and v.radius_m is not null
     ), '[]'::jsonb),
@@ -452,7 +455,8 @@ as $$
         round(coalesce(v.area_m2, extensions.st_area(v.shape))::numeric),
         extensions.st_asgeojson(extensions.st_multi(
           extensions.st_simplifypreservetopology(v.shape::extensions.geometry, 0.00002)), 6
-        )::jsonb -> 'coordinates'))
+        )::jsonb -> 'coordinates',
+        v.name))
       from public.venues v
       where v.region = p_region and v.shape is not null
     ), '[]'::jsonb)

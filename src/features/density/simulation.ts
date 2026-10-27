@@ -1,62 +1,111 @@
 /**
  * Simulated crowd model for Vienna. Development and testing only.
  *
- * Each hotspot has a category, a peak crowd size and a weekly rhythm. The
- * expected number of devices at any moment is peak x rhythm(category, day,
- * hour) x a little noise, spread over the hotspot's cell and its neighbours.
+ * Each place has a category, a crowd size at its busiest hour of the week
+ * and a weekly rhythm. The expected number of devices at a place at any
+ * moment is peak x rhythm(category, day, hour) x a little noise.
  *
  * Shared by scripts/seed-vienna.ts (which writes it into the database) and the
  * app's simulated feed (development builds), so both always agree.
  * Dependency-free apart from h3-js, and imported by relative path so it also
  * runs under plain Node (tsx).
  */
-import { cellToLatLng, cellToParent, gridDisk, latLngToCell } from 'h3-js';
+import { latLngToCell } from 'h3-js';
 
-import { K_ANONYMITY } from '../../../supabase/functions/_shared/levels.ts';
+import { K_ANONYMITY, levelForPlace } from '../../../supabase/functions/_shared/levels.ts';
 import {
-  H3_RESOLUTION,
   REGION_RESOLUTION,
   type Category,
+  type LivePlace,
+  type Trend,
 } from '../../../supabase/functions/_shared/types.ts';
 
 export type { Category };
 
-export interface Hotspot {
+export interface SimVenue {
+  /** Stable id for the simulated feed (the seed script gets real ids from the database). */
+  id: number;
   name: string;
   lat: number;
   lng: number;
   category: Category;
-  /** Devices in the centre cell at the busiest hour of the week. */
+  kind: string;
+  /** Devices at the busiest hour of the week. */
   peak: number;
+  /** Size of the place as a circle, for matching on the phone. */
+  radiusM: number;
 }
 
-export const HOTSPOTS: readonly Hotspot[] = [
-  { name: 'Stephansplatz', lat: 48.2082, lng: 16.3738, category: 'sights', peak: 35 },
-  { name: 'Graben', lat: 48.2087, lng: 16.3696, category: 'food', peak: 20 },
-  { name: 'Schwedenplatz', lat: 48.2115, lng: 16.3778, category: 'nightlife', peak: 19 },
-  { name: 'Donaukanal', lat: 48.216, lng: 16.383, category: 'nightlife', peak: 28 },
-  { name: 'Naschmarkt', lat: 48.1985, lng: 16.3627, category: 'food', peak: 25 },
-  { name: 'MuseumsQuartier', lat: 48.2032, lng: 16.356, category: 'sights', peak: 21 },
-  { name: 'Spittelberg', lat: 48.2033, lng: 16.3527, category: 'food', peak: 13 },
-  { name: 'Mariahilfer Straße', lat: 48.1985, lng: 16.3455, category: 'food', peak: 22 },
-  { name: 'Neubau', lat: 48.201, lng: 16.345, category: 'food', peak: 12 },
-  { name: 'Gürtel', lat: 48.2135, lng: 16.3395, category: 'nightlife', peak: 18 },
-  { name: 'Brunnenmarkt', lat: 48.2125, lng: 16.3335, category: 'food', peak: 14 },
-  { name: 'Rathausplatz', lat: 48.2108, lng: 16.3573, category: 'sights', peak: 17 },
-  { name: 'Volksgarten', lat: 48.2077, lng: 16.3605, category: 'outdoors', peak: 11 },
-  { name: 'Karlsplatz', lat: 48.1998, lng: 16.3712, category: 'sights', peak: 15 },
-  { name: 'Belvedere', lat: 48.1915, lng: 16.3809, category: 'sights', peak: 14 },
-  { name: 'Stadtpark', lat: 48.204, lng: 16.38, category: 'outdoors', peak: 12 },
-  { name: 'Prater', lat: 48.2167, lng: 16.3959, category: 'outdoors', peak: 25 },
-  { name: 'Augarten', lat: 48.2245, lng: 16.3755, category: 'outdoors', peak: 10 },
-  { name: 'Schönbrunn', lat: 48.1845, lng: 16.3122, category: 'sights', peak: 23 },
-  { name: 'Donauinsel', lat: 48.228, lng: 16.412, category: 'outdoors', peak: 15 },
-  { name: 'Alte Donau', lat: 48.2355, lng: 16.4205, category: 'outdoors', peak: 11 },
-  { name: 'Hauptbahnhof', lat: 48.1852, lng: 16.3765, category: 'food', peak: 17 },
+type Row = [string, number, number, Category, string, number, number];
+
+// name, lat, lng, category, kind, peak devices, radius in metres
+const ROWS: Row[] = [
+  ['Naschmarkt', 48.1985, 16.3627, 'food', 'market', 40, 150],
+  ['Figlmüller', 48.2088, 16.3752, 'food', 'restaurant', 14, 15],
+  ['Café Central', 48.2104, 16.3655, 'food', 'café', 18, 15],
+  ['Café Sacher', 48.2039, 16.3696, 'food', 'café', 15, 15],
+  ['Café Landtmann', 48.2114, 16.3613, 'food', 'café', 16, 18],
+  ['Plachutta Wollzeile', 48.2081, 16.379, 'food', 'restaurant', 14, 15],
+  ['Zum Schwarzen Kameel', 48.2096, 16.3698, 'food', 'restaurant', 12, 12],
+  ['Brunnenmarkt', 48.2125, 16.3335, 'food', 'market', 30, 120],
+  ['Karmelitermarkt', 48.2167, 16.3797, 'food', 'market', 20, 50],
+  ['Motto am Fluss', 48.2122, 16.3787, 'food', 'restaurant', 16, 20],
+  ['Café Sperl', 48.199, 16.36, 'food', 'café', 12, 12],
+  ['Vollpension', 48.1958, 16.361, 'food', 'café', 12, 12],
+  ['Schwedenplatz', 48.2115, 16.3772, 'sights', 'square', 30, 50],
+  ['Hauptbahnhof', 48.1852, 16.3765, 'sights', 'station', 45, 120],
+  ['Mariahilfer Straße', 48.1985, 16.3455, 'sights', 'shopping street', 60, 200],
+  ['Flex', 48.2168, 16.3685, 'nightlife', 'club', 40, 25],
+  ['Loos Bar', 48.2083, 16.3707, 'nightlife', 'bar', 12, 10],
+  ['Strandbar Herrmann', 48.2097, 16.3878, 'nightlife', 'bar', 30, 45],
+  ['Badeschiff', 48.2112, 16.3812, 'nightlife', 'bar', 22, 30],
+  ['Grelle Forelle', 48.2276, 16.364, 'nightlife', 'club', 35, 25],
+  ['Volksgarten Club', 48.2072, 16.36, 'nightlife', 'club', 35, 25],
+  ['Chelsea', 48.2108, 16.3385, 'nightlife', 'club', 20, 18],
+  ['B72', 48.2148, 16.3407, 'nightlife', 'club', 18, 18],
+  ['Bermudadreieck', 48.2117, 16.3745, 'nightlife', 'bar', 35, 70],
+  ['Donaukanal', 48.214, 16.38, 'nightlife', 'promenade', 45, 120],
+  ['Stephansdom', 48.2085, 16.3731, 'sights', 'church', 60, 45],
+  ['Hofburg', 48.2066, 16.3655, 'sights', 'palace', 45, 90],
+  ['Albertina', 48.2047, 16.3681, 'sights', 'museum', 35, 40],
+  ['Kunsthistorisches Museum', 48.2038, 16.3617, 'sights', 'museum', 40, 50],
+  ['Naturhistorisches Museum', 48.2052, 16.3598, 'sights', 'museum', 40, 50],
+  ['MuseumsQuartier', 48.2032, 16.3584, 'sights', 'arts centre', 55, 90],
+  ['Belvedere', 48.1915, 16.3809, 'sights', 'palace', 35, 90],
+  ['Schloss Schönbrunn', 48.1849, 16.3122, 'sights', 'palace', 70, 120],
+  ['Tiergarten Schönbrunn', 48.1823, 16.3028, 'outdoors', 'zoo', 60, 150],
+  ['Karlskirche', 48.1982, 16.3718, 'sights', 'church', 25, 35],
+  ['Riesenrad', 48.2166, 16.3958, 'sights', 'attraction', 30, 30],
+  ['Rathausplatz', 48.2108, 16.3573, 'sights', 'square', 50, 90],
+  ['Hundertwasserhaus', 48.2073, 16.3943, 'sights', 'attraction', 18, 25],
+  ['Staatsoper', 48.2031, 16.3692, 'sights', 'theatre', 40, 35],
+  ['Haus des Meeres', 48.1977, 16.353, 'sights', 'aquarium', 30, 25],
+  ['Votivkirche', 48.2155, 16.3588, 'sights', 'church', 12, 30],
+  ['Stadtpark', 48.204, 16.38, 'outdoors', 'park', 40, 120],
+  ['Volksgarten', 48.208, 16.3622, 'outdoors', 'park', 30, 75],
+  ['Burggarten', 48.2045, 16.3662, 'outdoors', 'park', 22, 55],
+  ['Augarten', 48.2245, 16.3755, 'outdoors', 'park', 35, 180],
+  ['Prater Hauptallee', 48.2075, 16.412, 'outdoors', 'park', 45, 250],
+  ['Donauinsel', 48.228, 16.412, 'outdoors', 'park', 70, 300],
+  ['Alte Donau', 48.237, 16.423, 'outdoors', 'bathing area', 40, 200],
+  ['Türkenschanzpark', 48.2345, 16.333, 'outdoors', 'park', 25, 150],
 ];
 
-/** Share of a hotspot's crowd in ring 0, 1 and 2 of its H3 cell. */
-export const FALLOFF = [1, 0.45, 0.15] as const;
+export const SIM_VENUES: readonly SimVenue[] = ROWS.map(
+  ([name, lat, lng, category, kind, peak, radiusM], i) => ({
+    id: i + 1,
+    name,
+    lat,
+    lng,
+    category,
+    kind,
+    peak,
+    radiusM,
+  }),
+);
+
+/** Region (H3 resolution 5) of a simulated place. */
+export const simRegion = (v: SimVenue) => latLngToCell(v.lat, v.lng, REGION_RESOLUTION);
 
 /**
  * Hour-of-day curves, 0..1, for an ordinary weekday. Index = local hour.
@@ -140,78 +189,16 @@ export function hash01(s: string): number {
   return ((h >>> 0) % 10000) / 10000;
 }
 
-// ------------------------------------------------------------ cell model ---
+// ----------------------------------------------------------- place model ---
 
-export interface SimCell {
-  cell: string;
-  region: string;
-  lng: number;
-  lat: number;
-  /** Hotspot contributing most to this cell: names the place. */
-  main: Hotspot;
-  parts: { spot: Hotspot; share: number }[];
-  /** Most devices the cell ever needs in a week, with noise headroom. */
-  capacity: number;
-}
-
-let modelCache: SimCell[] | null = null;
-
-/** Every cell the hotspots spill into, with each hotspot's share. */
-export function simulatedCells(): SimCell[] {
-  if (modelCache) return modelCache;
-  const byCell = new Map<string, { spot: Hotspot; share: number }[]>();
-  for (const spot of HOTSPOTS) {
-    const centre = latLngToCell(spot.lat, spot.lng, H3_RESOLUTION);
-    const seen = new Set<string>();
-    FALLOFF.forEach((share, ring) => {
-      for (const cell of gridDisk(centre, ring)) {
-        if (seen.has(cell)) continue;
-        seen.add(cell);
-        const jitter = 0.8 + 0.4 * hash01(cell + spot.name);
-        const parts = byCell.get(cell) ?? [];
-        parts.push({ spot, share: share * jitter });
-        byCell.set(cell, parts);
-      }
-    });
-  }
-  modelCache = [...byCell].map(([cell, parts]) => {
-    const [lat, lng] = cellToLatLng(cell);
-    const main = parts.reduce((a, b) =>
-      b.spot.peak * b.share > a.spot.peak * a.share ? b : a,
-    ).spot;
-    const c: SimCell = {
-      cell,
-      region: cellToParent(cell, REGION_RESOLUTION),
-      lng,
-      lat,
-      main,
-      parts,
-      capacity: 0,
-    };
-    c.capacity = weeklyMax(c);
-    return c;
-  });
-  return modelCache;
-}
-
-function base(c: SimCell, at: Date): number {
-  return c.parts.reduce((s, p) => s + p.spot.peak * p.share * rhythm(p.spot.category, at), 0);
-}
-
-function weeklyMax(c: SimCell): number {
-  const monday = Date.UTC(2026, 0, 5); // any full week works
-  let max = 0;
-  for (let t = monday; t < monday + 7 * 86_400_000; t += 15 * 60_000) {
-    max = Math.max(max, base(c, new Date(t)));
-  }
-  return Math.ceil(max * 1.12) + 1;
-}
-
-/** Expected distinct devices in a cell at a moment (noise changes every 5 minutes). */
-export function expectedDevices(c: SimCell, at: Date): number {
+/** Expected distinct devices at a place at a moment (noise changes every 5 minutes). */
+export function expectedDevices(
+  v: { name: string; category: Category; peak: number },
+  at: Date,
+): number {
   const slot = Math.floor(at.getTime() / 300_000);
-  const noise = 0.88 + 0.24 * hash01(`${c.cell}:${slot}`);
-  return Math.max(0, Math.round(base(c, at) * noise));
+  const noise = 0.88 + 0.24 * hash01(`${v.name}:${slot}`);
+  return Math.max(0, Math.round(v.peak * rhythm(v.category, at) * noise));
 }
 
 /** A snapshot as the server would publish it: under k is 0, otherwise rounded to 5. */
@@ -219,22 +206,56 @@ export function publishedDevices(devices: number): number {
   return devices < K_ANONYMITY ? 0 : Math.max(K_ANONYMITY, Math.round(devices / 5) * 5);
 }
 
+const MONDAY = Date.UTC(2026, 0, 4, 23); // 00:00 Monday in Vienna (CET)
+
 /**
- * Typical devices per local weekday and hour, built like get_cell_detail():
+ * Typical devices per local weekday and hour, built like get_venue_detail():
  * four k-anonymous 15-minute snapshots per hour, averaged. One reference
  * week is enough for the simulation, which repeats weekly.
  */
-export function simulatedUsual(c: SimCell): { d: number; h: number; v: number }[] {
+export function simulatedUsual(v: SimVenue): { d: number; h: number; v: number }[] {
   const out: { d: number; h: number; v: number }[] = [];
-  const monday = Date.UTC(2026, 0, 4, 23); // 00:00 Monday in Vienna (CET)
   for (let d = 1; d <= 7; d++) {
     for (let h = 0; h < 24; h++) {
-      const start = monday + ((d - 1) * 24 + h) * 3_600_000;
+      const start = MONDAY + ((d - 1) * 24 + h) * 3_600_000;
       let sum = 0;
       for (let q = 0; q < 4; q++)
-        sum += publishedDevices(expectedDevices(c, new Date(start + q * 900_000)));
+        sum += publishedDevices(expectedDevices(v, new Date(start + q * 900_000)));
       out.push({ d, h, v: Math.round((sum / 4) * 10) / 10 });
     }
   }
   return out;
+}
+
+const peakCache = new Map<number, number>();
+
+/** The place's usual peak, as refresh_usual_peaks() would compute it. */
+export function simulatedUsualPeak(v: SimVenue): number {
+  let peak = peakCache.get(v.id);
+  if (peak === undefined) {
+    peak = Math.max(...simulatedUsual(v).map((p) => p.v));
+    peakCache.set(v.id, peak);
+  }
+  return peak;
+}
+
+/** The live place as the server would publish it, or null under k. */
+export function simulatedLivePlace(v: SimVenue, now: Date): LivePlace | null {
+  const current = expectedDevices(v, now);
+  const devices = publishedDevices(current);
+  if (devices === 0) return null;
+  const before = expectedDevices(v, new Date(now.getTime() - 7.5 * 60_000));
+  const trend: Trend = current > before * 1.2 + 1 ? 1 : current < before * 0.8 - 1 ? -1 : 0;
+  return {
+    id: v.id,
+    name: v.name,
+    category: v.category,
+    kind: v.kind,
+    lng: v.lng,
+    lat: v.lat,
+    devices,
+    level: levelForPlace(devices, simulatedUsualPeak(v)),
+    trend,
+    updatedAt: now.toISOString(),
+  };
 }

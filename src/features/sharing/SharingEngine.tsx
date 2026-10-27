@@ -4,18 +4,20 @@ import { AppState } from 'react-native';
 import { useConsent } from '@/features/consent/consent';
 import {
   permissionState,
-  watchCoarseCell,
+  watchPlace,
   type PermissionState,
 } from '@/features/location/privacyBoundary';
+import { cachedPlaceIndex } from '@/features/places/placeShapes';
 
-import { PING_INTERVAL_MS, sendPing, setSharingStatus, sharingStore } from './sharing';
+import { pauseSharing, PING_INTERVAL_MS, sendPing, setSharingStatus } from './sharing';
 
 /**
  * Runs the ping loop while, and only while, all of these hold:
  *   - the person chose to share,
  *   - the OS grants foreground location,
  *   - the app is in the foreground.
- * Sends on start, every 3 minutes, and when the phone enters a new cell.
+ * Checks on start, every 3 minutes, and when the phone arrives at, leaves or
+ * changes place; a ping goes out only after two minutes at the same place.
  * Renders nothing.
  */
 export function SharingEngine() {
@@ -48,9 +50,7 @@ export function SharingEngine() {
 
     sendPing();
     const timer = setInterval(() => sendPing(), PING_INTERVAL_MS);
-    watchCoarseCell((fix) => {
-      if (fix.cell !== sharingStore.get().myCell) sendPing(fix);
-    })
+    watchPlace(cachedPlaceIndex, (fix) => sendPing(fix))
       .then((stop) => {
         if (cancelled) stop();
         else stopWatching = stop;
@@ -63,6 +63,7 @@ export function SharingEngine() {
       cancelled = true;
       clearInterval(timer);
       stopWatching?.();
+      pauseSharing();
     };
   }, [active]);
 

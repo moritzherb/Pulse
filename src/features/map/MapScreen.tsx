@@ -6,13 +6,12 @@ import {
   type ViewStateChangeEvent,
 } from '@maplibre/maplibre-react-native';
 import { useRouter } from 'expo-router';
-import { latLngToCell } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, useWindowDimensions, View, type NativeSyntheticEvent } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { CellDetailSheet, DETAIL_SNAP } from '@/components/detail/CellDetailSheet';
+import { DETAIL_SNAP, PlaceDetailSheet } from '@/components/detail/PlaceDetailSheet';
 import { BusiestSheet } from '@/components/map/BusiestSheet';
 import { EmptyState } from '@/components/map/EmptyState';
 import { HeatLayers, MeDot } from '@/components/map/HeatLayers';
@@ -35,19 +34,19 @@ import {
 import { cellCenter, type LngLat } from '@/lib/h3';
 import { ago, useNow } from '@/lib/time';
 import { useTheme } from '@/theme';
-import { H3_RESOLUTION, type Category, type LiveCell } from '@shared/types.ts';
+import type { Category, LivePlace } from '@shared/types.ts';
 
 import { useMapStyle } from './mapStyle';
 
 const CITY_ZOOM = 12.2;
 const LOCATE_ZOOM = 12.6;
-const CELL_ZOOM = 14.6;
+const PLACE_ZOOM = 15.6;
 
 type Bounds = [west: number, south: number, east: number, north: number];
 
 /**
- * The main screen: heatmap, venue pins, search, filters, controls, the
- * "Busiest now" card and the cell / venue detail sheet.
+ * The main screen: the place heatmap, place pins, search, filters, controls,
+ * the "Busiest now" card and the place detail sheet.
  */
 export function MapScreen() {
   const theme = useTheme();
@@ -80,7 +79,7 @@ export function MapScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const sharing = consent.location && sharingState.status === 'sharing';
+  const sharing = consent.location && ['sharing', 'arriving', 'away'].includes(sharingState.status);
 
   const say = useCallback(
     (message: string) => {
@@ -143,30 +142,27 @@ export function MapScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The "me" dot marks the cell of the last accepted ping, only while sharing.
-  const shownCell = sharing ? sharingState.myCell : null;
+  // The "me" dot marks the place the phone is at (the place's own position), only while sharing.
+  const myPlace = consent.location ? sharingState.myPlace : null;
 
   const filtered = useMemo(
     () =>
       categories.length === 0
-        ? density.cells
-        : density.cells.filter((c) => c.category && categories.includes(c.category)),
-    [density.cells, categories],
+        ? density.places
+        : density.places.filter((p) => categories.includes(p.category)),
+    [density.places, categories],
   );
 
   const inView = useMemo(() => {
     if (!bounds) return filtered;
     const [w, s, e, n] = bounds;
-    return filtered.filter((c) => {
-      const [lng, lat] = cellCenter(c.cell);
-      return lng >= w && lng <= e && lat >= s && lat <= n;
-    });
+    return filtered.filter((p) => p.lng >= w && p.lng <= e && p.lat >= s && p.lat <= n);
   }, [filtered, bounds]);
 
   const results = useMemo(() => searchCities(query), [query]);
   const venues = useVenues(bounds, zoom);
   const selectedLive = selection
-    ? (density.cells.find((c) => c.cell === selection.cell) ?? null)
+    ? (density.places.find((p) => p.id === selection.id) ?? null)
     : null;
 
   const onRegionIsChanging = useCallback((e: NativeSyntheticEvent<ViewStateChangeEvent>) => {
@@ -198,21 +194,11 @@ export function MapScreen() {
     setCategories((prev) => (prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]));
   }, []);
 
-  const focusCell = useCallback(
-    (cell: LiveCell) => {
-      setSelection({ cell: cell.cell });
-      flyTo(cellCenter(cell.cell), Math.max(zoom, CELL_ZOOM), true);
-    },
-    [flyTo, zoom],
-  );
-
-  const focusVenue = useCallback(
-    (pin: VenuePin) => {
-      setSelection({
-        cell: pin.cell ?? latLngToCell(pin.lat, pin.lng, H3_RESOLUTION),
-        venue: { name: pin.name, category: pin.category, kind: pin.kind },
-      });
-      flyTo([pin.lng, pin.lat], Math.max(zoom, CELL_ZOOM), true);
+  const focusPlace = useCallback(
+    (place: LivePlace | VenuePin) => {
+      const { id, name, category, kind, lng, lat } = place;
+      setSelection({ id, name, category, kind, lng, lat });
+      flyTo([lng, lat], Math.max(zoom, PLACE_ZOOM), true);
     },
     [flyTo, zoom],
   );
@@ -251,16 +237,16 @@ export function MapScreen() {
           ref={cameraRef}
           initialViewState={{ center: [DEFAULT_CITY.lng, DEFAULT_CITY.lat], zoom: CITY_ZOOM }}
         />
+        <VenueLayer pins={venues} onPress={focusPlace} />
         <HeatLayers
-          cells={filtered}
-          selectedCell={selection?.cell ?? null}
-          onCellPress={(cell) => {
-            const hit = filtered.find((c) => c.cell === cell);
-            if (hit) focusCell(hit);
+          places={filtered}
+          selectedId={selection?.id ?? null}
+          onPlacePress={(id) => {
+            const hit = filtered.find((p) => p.id === id);
+            if (hit) focusPlace(hit);
           }}
         />
-        <VenueLayer pins={venues} onPress={focusVenue} />
-        <MeDot cell={shownCell} />
+        <MeDot at={myPlace?.center ?? null} />
       </Map>
 
       <MapTopBar
@@ -289,17 +275,17 @@ export function MapScreen() {
 
       {!selection && (
         <BusiestSheet
-          cells={inView}
+          places={inView}
           cityName={city.name}
           updatedLabel={ago(density.updatedAt, now)}
           open={sheetOpen}
           onToggle={() => setSheetOpen((v) => !v)}
-          onPickCell={focusCell}
+          onPickPlace={focusPlace}
           onLayoutHeight={setSheetHeight}
         />
       )}
 
-      <CellDetailSheet
+      <PlaceDetailSheet
         selection={selection}
         live={selectedLive}
         updatedLabel={ago(density.updatedAt, now)}
