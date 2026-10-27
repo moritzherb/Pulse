@@ -17,7 +17,7 @@ Design prototype. The app re-implements it natively; it does not embed it.
 | ----- | --------------------------------------------------------------------------- | ----- |
 | 1a    | Expo project, design tokens, core components, token gallery                 | done  |
 | 1b    | Navigation, screen shells, MapLibre map with mock Vienna heat               | done  |
-| 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime |       |
+| 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime | done  |
 | 3     | Venues (OSM import) and the cell / venue detail sheet                       |       |
 | 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility |       |
 | 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       |       |
@@ -35,7 +35,7 @@ You need a Mac only if you want to build locally. EAS builds in the cloud.
    ```sh
    git clone https://github.com/moritzherb/Pulse.git && cd Pulse
    npm install
-   cp .env.example .env   # nothing to fill in yet for Phase 1
+   cp .env.example .env   # fill in after setting up the backend (below)
    ```
 3. **Development build for your iPhone** (the app uses native modules, so Expo Go will
    not work)
@@ -51,21 +51,92 @@ You need a Mac only if you want to build locally. EAS builds in the cloud.
    npm start
    ```
    Open the installed Pulse dev app on the phone; it connects to the dev server.
-   First launch shows the consent screen, then the map of Vienna with mock data.
-   The design-token gallery is at `/dev/tokens` in development builds.
+   First launch shows the consent screen, then the map. Without Supabase keys in `.env`
+   the map shows simulated Vienna data. The design-token gallery is at `/dev/tokens` in
+   development builds.
 
 Simulator alternative (Mac with Xcode): `eas build --profile development-simulator
 --platform ios`, or `npx expo run:ios`.
 
+## Backend (Supabase)
+
+### Hosted project
+
+1. Create a project at [supabase.com](https://supabase.com). Pick an EU region (for
+   example Frankfurt) to keep data in the EU.
+2. **Authentication → Sign In / Providers → Anonymous sign-ins**: turn on. (The
+   `supabase/config.toml` setting only applies to the local stack.)
+3. Link and push the schema:
+   ```sh
+   npx supabase login
+   npx supabase link --project-ref <your-project-ref>
+   npx supabase db push            # applies supabase/migrations (PostGIS, pg_cron, RLS, jobs)
+   ```
+   If the migration reports that `pg_cron` or `postgis` is not available, enable them
+   under **Database → Extensions** and push again.
+4. Deploy the Edge Functions:
+   ```sh
+   npx supabase functions deploy ping delete-me
+   # optional: npx supabase secrets set PING_MIN_ACCOUNT_AGE_SECONDS=120
+   ```
+5. Fill in `.env`: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+   (**Project Settings → API**), and `DATABASE_URL` (**Connect → Session pooler**) for
+   the seed script. Restart `npm start`.
+
+### Simulated Vienna data
+
+```sh
+npm run seed                    # places, venues and 28 days of hourly history
+npm run seed -- --live          # plus synthetic devices pinging every minute (Ctrl+C stops)
+npm run seed -- --reset         # remove everything the seed created
+```
+
+Everything the seed writes is marked as synthetic (users flagged in
+`raw_app_meta_data`, places / venues with `source = 'seed'`, venue names ending in
+"(simulated)"). Live mode writes raw pings and runs the real aggregation, so the
+5-device minimum, rounding and Realtime broadcasts are exercised end to end. It refuses
+non-local databases unless you pass `--yes`. Never seed a production project.
+
+### Local stack (optional, needs Docker)
+
+```sh
+npx supabase start              # prints the local URL and keys for .env
+npx supabase db reset           # applies migrations
+npx supabase functions serve --env-file supabase/functions/.env
+```
+
+### How the pipeline works
+
+| Step                                                                                               | Where                                        |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Phone converts its position to an H3 cell (res 8) and drops the coordinate                         | `src/features/location/privacyBoundary.ts`   |
+| Every 3 min while open and sharing, and on entering a new cell: `POST /ping { cell }`              | `src/features/sharing/`                      |
+| Edge Function checks the session and the cell, then `record_ping()` rate-limits and stores it      | `supabase/functions/ping`, `record_ping()`   |
+| Every minute: distinct devices per cell over 15 min, cells under 5 dropped, rounded to 5, labelled | `refresh_live_cells()`                       |
+| Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat (`pulse:tick`)          | `realtime.send()`                            |
+| App reads `live_cells` around the map and applies broadcasts                                       | `src/features/density/useDensity.ts`         |
+| Every 15 min the k-anonymous counts are added to hourly history                                    | `snapshot_hourly()`                          |
+| Pings deleted after 20 min; anonymous users after 25 h; history after 12 months                    | `purge_expired_pings()`, `purge_retention()` |
+
+### Database tests
+
+```sh
+npx supabase test db            # with the local stack
+npm run db:test                 # or against a plain local Postgres with PostGIS, pg_cron, pgTAP
+```
+
 ## Scripts
 
-| Command             | What it does                                       |
-| ------------------- | -------------------------------------------------- |
-| `npm start`         | Dev server for the development build               |
-| `npm run typecheck` | `tsc --noEmit` (strict)                            |
-| `npm run lint`      | ESLint (eslint-config-expo)                        |
-| `npm run format`    | Prettier                                           |
-| `npm test`          | Jest unit tests (levels, H3, mock data, map style) |
+| Command                   | What it does                                       |
+| ------------------------- | -------------------------------------------------- |
+| `npm start`               | Dev server for the development build               |
+| `npm run typecheck`       | `tsc --noEmit` (strict)                            |
+| `npm run lint`            | ESLint (eslint-config-expo)                        |
+| `npm run format`          | Prettier                                           |
+| `npm test`                | Jest unit tests (levels, H3, mock data, map style) |
+| `npm run seed`            | Simulated Vienna data (see Backend)                |
+| `npm run db:test`         | Migrations + pgTAP tests on a local Postgres       |
+| `npm run functions:check` | Type-check the Edge Functions with Deno            |
 
 ## Project layout
 
@@ -75,9 +146,14 @@ src/components/ui/    Core components built on the design tokens
 src/theme/            Tokens (colour, type, spacing, radii, shadows, motion), ThemeProvider
 src/features/         Consent, location privacy boundary, density data, map screen
 src/components/map/   Heat layers, top bar, controls, "Busiest now" card, empty state
-src/lib/              Storage, H3 helpers, small utilities (later: Supabase client)
+src/features/sharing/ Ping loop (SharingEngine) and the one function that sends a ping
+src/features/identity/ Rotating anonymous identity (Supabase anonymous auth)
+src/lib/              Storage, Supabase client, H3 helpers, small utilities
 src/data/             Bundled city list for search (no geocoding service)
-supabase/functions/   Edge Functions; _shared/ is imported by the app as @shared/*
+supabase/migrations/  Schema, RLS, aggregation, retention, cron jobs (SQL)
+supabase/functions/   Edge Functions (ping, delete-me); _shared/ is imported by the app as @shared/*
+supabase/tests/       pgTAP tests (RLS, k-anonymity, retention) and a local runner
+scripts/              Seed script for simulated Vienna data
 design/               The Claude Design prototype (reference only)
 ```
 
@@ -98,4 +174,5 @@ as the CARTO raster in the design prototype. Dark mode recolours Positron on the
 
 Keys live in `.env` (git-ignored). Only `EXPO_PUBLIC_*` values are bundled into the app,
 and only values that are public by design (Supabase URL and anon key) go there. The
-Supabase service-role key is never used by the app.
+service-role key exists only inside Supabase (Edge Functions); the app never sees it.
+`DATABASE_URL` is used only by the seed script on your computer.
