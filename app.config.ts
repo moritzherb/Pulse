@@ -1,4 +1,4 @@
-import type { ExpoConfig } from 'expo/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 /**
  * Expo app config.
@@ -10,7 +10,12 @@ import type { ExpoConfig } from 'expo/config';
 const APP_NAME = 'Pulse';
 const BUNDLE_ID = 'com.moritzherb.pulse';
 
-const config: ExpoConfig = {
+/**
+ * `config` is the content of app.json. It only holds what EAS writes there
+ * (`eas init` adds the project id and owner); everything else is defined here.
+ */
+export default ({ config }: ConfigContext): ExpoConfig => ({
+  ...config,
   name: APP_NAME,
   slug: 'pulse',
   scheme: 'pulse',
@@ -117,6 +122,7 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
   },
-};
-
-export default config;
+  extra: {
+    ...config.extra,
+  },
+});

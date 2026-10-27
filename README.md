@@ -15,6 +15,7 @@ filled in where the design is silent, and the accessibility features.
 
 | Document                                           | What it is                                                                  |
 | -------------------------------------------------- | --------------------------------------------------------------------------- |
+| [`docs/try-it.md`](docs/try-it.md)                 | Simple step-by-step: run Pulse on your phone                                |
 | [`docs/release.md`](docs/release.md)               | Release checklist: production backend, EAS, TestFlight, Google Play         |
 | [`docs/privacy-policy.md`](docs/privacy-policy.md) | Privacy policy draft (placeholders for the controller details)              |
 | [`docs/store-privacy.md`](docs/store-privacy.md)   | App Store privacy label and Google Play Data safety answers, mapped to code |
