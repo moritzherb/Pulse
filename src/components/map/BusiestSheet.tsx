@@ -1,10 +1,17 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import Animated, { LinearTransition, useReducedMotion } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  useReducedMotion,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   FloatingCard,
   HeatLegend,
+  LevelKey,
   LevelSwatch,
   Text,
   TrendGlyph,
@@ -35,6 +42,14 @@ export function BusiestSheet(props: BusiestSheetProps) {
   const { colors, layout, zIndex } = useTheme();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
+  const [keyOpen, setKeyOpen] = useState(false);
+  const rowMotion = reduceMotion
+    ? {}
+    : {
+        layout: LinearTransition.duration(260),
+        entering: FadeIn.duration(260),
+        exiting: FadeOut.duration(180),
+      };
 
   const rows: LiveCell[] = [];
   const seen = new Set<string>();
@@ -105,47 +120,64 @@ export function BusiestSheet(props: BusiestSheetProps) {
             {rows.map((c) => {
               const level = heatLevels[c.level].label;
               return (
-                <Pressable
-                  key={c.cell}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${c.label ?? 'Unnamed area'}. ${level}, about ${c.devices} people, ${trendLabel(c.trend)}.`}
-                  onPress={() => props.onPickCell(c)}
-                  style={({ pressed }) => ({
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    paddingVertical: 11,
-                    borderTopWidth: 1,
-                    borderTopColor: colors.border.divider,
-                    opacity: pressed ? 0.6 : 1,
-                  })}
-                >
-                  <LevelSwatch level={c.level} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text variant="callout" numberOfLines={1}>
-                      {c.label ?? 'Unnamed area'}
-                    </Text>
-                    <Text
-                      variant="monoSub"
-                      color="muted"
-                      numberOfLines={1}
-                      style={{ paddingTop: 2 }}
-                    >
-                      {c.category ? `${level} · ${c.category}` : level}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text variant="monoData" style={{ minWidth: 34, textAlign: 'right' }}>
-                      ~{c.devices}
-                    </Text>
-                    <TrendGlyph trend={c.trend} />
-                  </View>
-                </Pressable>
+                // Keyed by place, so a row glides to its new rank instead of re-mounting.
+                <Animated.View key={c.label ?? c.cell} {...rowMotion}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${c.label ?? 'Unnamed area'}. ${level}, about ${c.devices} people, ${trendLabel(c.trend)}.`}
+                    onPress={() => props.onPickCell(c)}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 12,
+                      paddingVertical: 11,
+                      borderTopWidth: 1,
+                      borderTopColor: colors.border.divider,
+                      opacity: pressed ? 0.6 : 1,
+                    })}
+                  >
+                    <LevelSwatch level={c.level} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text variant="callout" numberOfLines={1}>
+                        {c.label ?? 'Unnamed area'}
+                      </Text>
+                      <Text
+                        variant="monoSub"
+                        color="muted"
+                        numberOfLines={1}
+                        style={{ paddingTop: 2 }}
+                      >
+                        {c.category ? `${level} · ${c.category}` : level}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text variant="monoData" style={{ minWidth: 34, textAlign: 'right' }}>
+                        ~{c.devices}
+                      </Text>
+                      <TrendGlyph trend={c.trend} />
+                    </View>
+                  </Pressable>
+                </Animated.View>
               );
             })}
-            <View style={{ paddingTop: 14, paddingBottom: 2 }}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ expanded: keyOpen }}
+              accessibilityHint={keyOpen ? 'Hides the key' : 'Shows what each pattern means'}
+              onPress={() => setKeyOpen((v) => !v)}
+              style={{ paddingTop: 14, paddingBottom: 2 }}
+            >
               <HeatLegend />
-            </View>
+            </Pressable>
+            {keyOpen && (
+              // fill-in: the four levels with their patterns, so the map can be read without colour.
+              <Animated.View
+                entering={reduceMotion ? undefined : FadeIn.duration(200)}
+                style={{ paddingTop: 12 }}
+              >
+                <LevelKey />
+              </Animated.View>
+            )}
           </ScrollView>
         )}
       </FloatingCard>
