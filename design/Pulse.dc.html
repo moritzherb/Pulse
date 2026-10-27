@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; background: #ececed; }
+  * { box-sizing: border-box; }
+  a { color: #000; text-decoration: underline; text-underline-offset: 3px; }
+  a:hover { color: #5a5a5a; }
+  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+  .maplibregl-ctrl-attrib { font-size: 9px; }
+  .maplibregl-ctrl-bottom-right { bottom: 22px; }
+</style>
+</helmet>
+
+<div style="position: fixed; inset: 0; overflow: auto; background: #e9e9ea; display: flex; align-items: flex-start; justify-content: center; padding: 24px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">
+  <div style="flex: none; width: 402px; height: 874px; margin: auto;">
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" width="{{ 402 }}" height="{{ 874 }}" hint-size="402px,874px">
+    <div style="position: relative; height: 100%; overflow: hidden; background: #fff;">
+
+      <sc-if value="{{ isConsent }}" hint-placeholder-val="{{ true }}">
+        <div style="position: absolute; inset: 0; overflow-y: auto; background: #fff; padding: 60px 22px 44px;">
+
+          <sc-if value="{{ consentA }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <h1 style="margin: 0 0 12px; font-size: 31px; line-height: 1.1; font-weight: 500; letter-spacing: -0.03em;">Before the map</h1>
+              <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.5; color: #6b6b6b;">See how busy places are, live. Looking costs nothing.</p>
+              <div style="display: flex; flex-direction: column; gap: 1px; background: #e6e6e8; border: 1px solid #e6e6e8; border-radius: 8px; overflow: hidden;">
+                <sc-for list="{{ facts }}" as="f" hint-placeholder-count="4">
+                  <div style="background: #fafafa; padding: 13px 14px;">
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c; padding-bottom: 5px;">{{ f.k }}</div>
+                    <div style="font-size: 14px; line-height: 1.5; text-wrap: pretty;">{{ f.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding: 30px 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a8a8c;">Each one separate</div>
+              <div style="display: flex; flex-direction: column; gap: 1px; background: #e6e6e8; border: 1px solid #e6e6e8; border-radius: 8px; overflow: hidden;">
+                <sc-for list="{{ purposes }}" as="p" hint-placeholder-count="3">
+                  <div onClick="{{ p.toggle }}" style="display: flex; align-items: flex-start; gap: 14px; padding: 15px 14px; background: #fff; cursor: pointer; min-height: 46px;">
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="font-size: 14.5px; padding-bottom: 4px;">{{ p.label }}</div>
+                      <div style="font-size: 12.5px; line-height: 1.45; color: #767678; text-wrap: pretty;">{{ p.detail }}</div>
+                    </div>
+                    <div style="flex: none; width: 46px; height: 28px; border-radius: 999px; padding: 3px; display: flex; align-items: center; transition: background 160ms; justify-content: {{ p.j }}; background: {{ p.bg }};">
+                      <div style="width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.28);"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px; padding: 26px 0 0;">
+                <div onClick="{{ goShare }}" style="height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #000; background: #000; color: #fff; font-size: 16px; cursor: pointer;" style-hover="background: #262626;">Share anonymously</div>
+                <div onClick="{{ goBrowse }}" style="height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #000; background: #fff; color: #000; font-size: 16px; cursor: pointer;" style-hover="background: #f0f0f0;">Just browse</div>
+              </div>
+              <div style="padding: 14px 0 0; font-size: 13px; color: #767678;">Both open the same map.</div>
+              <div style="padding: 18px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #8a8a8c;">Policy {{ policyVersion }} · <a href="#" onClick="{{ goPrivacy }}">Privacy policy</a></div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ consentB }}">
+            <div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c; padding-bottom: 10px;">Nothing has been sent yet</div>
+              <h1 style="margin: 0 0 12px; font-size: 31px; line-height: 1.1; font-weight: 500; letter-spacing: -0.03em;">Look, don't share.</h1>
+              <p style="margin: 0 0 20px; font-size: 15px; line-height: 1.5; color: #6b6b6b;">If you do share, this is all of it:</p>
+              <div style="border: 1px solid #e6e6e8; border-radius: 8px; overflow: hidden;">
+                <div onClick="{{ togglePayload }}" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 14px; background: #fafafa; cursor: pointer; min-height: 46px;">
+                  <div style="font-size: 14px;">The whole payload</div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; white-space: nowrap;">{{ payloadToggleLabel }}</div>
+                </div>
+                <sc-if value="{{ payloadOpen }}">
+                  <div style="padding: 14px; background: #fff; border-top: 1px solid #e6e6e8;">
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.85; white-space: pre-wrap;">{{ payloadText }}</div>
+                    <div style="padding: 14px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.7;">
+                      <div style="color: #8a8a8c; letter-spacing: 0.06em; text-transform: uppercase; font-size: 9.5px;">discarded on device</div>
+                      <div style="color: #767678; text-decoration: line-through;">{{ discardedText }}</div>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; padding: 16px 0 0;">
+                <sc-for list="{{ badges }}" as="b" hint-placeholder-count="4">
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; padding: 7px 10px; border: 1px solid #e0e0e2; border-radius: 999px; color: #6b6b6b;">{{ b }}</div>
+                </sc-for>
+              </div>
+              <div style="padding: 30px 0 12px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a8a8c;">Each one separate</div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <sc-for list="{{ purposes }}" as="p" hint-placeholder-count="3">
+                  <div onClick="{{ p.toggle }}" style="display: flex; align-items: flex-start; gap: 14px; padding: 15px 14px; background: #fff; border: 1px solid #e6e6e8; border-radius: 8px; cursor: pointer; min-height: 46px;">
+                    <div style="flex: 1; min-width: 0;">
+                      <div style="font-size: 14.5px; padding-bottom: 4px;">{{ p.label }}</div>
+                      <div style="font-size: 12.5px; line-height: 1.45; color: #767678; text-wrap: pretty;">{{ p.detail }}</div>
+                    </div>
+                    <div style="flex: none; width: 46px; height: 28px; border-radius: 999px; padding: 3px; display: flex; align-items: center; transition: background 160ms; justify-content: {{ p.j }}; background: {{ p.bg }};">
+                      <div style="width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.28);"></div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px; padding: 20px 0 0;">
+                <div onClick="{{ goShare }}" style="height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #000; background: #000; color: #fff; font-size: 16px; cursor: pointer;" style-hover="background: #262626;">Share anonymously</div>
+                <div onClick="{{ goBrowse }}" style="height: 52px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #000; background: #fff; color: #000; font-size: 16px; cursor: pointer;" style-hover="background: #f0f0f0;">Just browse</div>
+              </div>
+              <div style="padding: 14px 0 0; font-size: 13px; color: #767678;">Same map either way.</div>
+              <div style="padding: 18px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #8a8a8c;">Policy {{ policyVersion }} · <a href="#" onClick="{{ goPrivacy }}">Privacy policy</a></div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMap }}">
+        <div style="position: absolute; inset: 0;">
+          <div ref="{{ mapRef }}" style="position: absolute; inset: 0; background: #f2f2f2;"></div>
+
+          <div style="position: absolute; top: 0; left: 0; right: 0; padding: 54px 14px 26px; background: linear-gradient(to bottom, rgba(255,255,255,0.92) 30%, rgba(255,255,255,0)); pointer-events: none;">
+            <div style="display: flex; gap: 8px; align-items: center; pointer-events: auto; padding-bottom: 8px;">
+              <div style="flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 14px; border-radius: 999px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.12);">
+                <div style="flex: none; width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #8a8a8c;"></div>
+                <input type="text" placeholder="Search a city" value="{{ query }}" onChange="{{ onQuery }}" style="flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; color: #000;" />
+                <sc-if value="{{ hasQuery }}">
+                  <div onClick="{{ clearQuery }}" style="flex: none; font-size: 15px; color: #8a8a8c; cursor: pointer; padding: 0 2px;">×</div>
+                </sc-if>
+              </div>
+              <div style="flex: none; display: flex; gap: 6px;">
+                <div onClick="{{ toggleInspector }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.12); cursor: pointer; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px;">{}</div>
+                <div onClick="{{ goSettings }}" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.12); cursor: pointer;">
+                  <div style="width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #000;"></div>
+                </div>
+              </div>
+            </div>
+
+            <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; gap: 8px; align-items: center; pointer-events: auto;">
+              <div style="flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px;">
+                <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+                  <div onClick="{{ c.toggle }}" style="flex: none; height: 44px; display: flex; align-items: center; padding: 0 15px; border-radius: 999px; font-size: 13.5px; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.10); border: 1px solid {{ c.bd }}; background: {{ c.bg }}; color: {{ c.fg }};">{{ c.label }}</div>
+                </sc-for>
+                <sc-if value="{{ sharing }}">
+                  <div onClick="{{ goSettings }}" style="flex: none; height: 44px; display: flex; align-items: center; gap: 7px; padding: 0 13px; border-radius: 999px; border: 1px solid #d4d4d6; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.10); cursor: pointer;">
+                    <div style="width: 6px; height: 6px; border-radius: 50%; background: #12b76a; animation: pulseDot 2.4s ease-in-out infinite;"></div>
+                    <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #3d3d3f;">Sharing</div>
+                  </div>
+                </sc-if>
+              </div>
+            </div>
+            </sc-if>
+          </div>
+
+          <div style="position: absolute; right: 14px; top: 168px; display: flex; flex-direction: column; gap: 8px;">
+            <div onClick="{{ resetNorth }}" style="width: 44px; height: 44px; border-radius: 999px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; transform: rotate({{ bearing }}deg);">
+                <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 11px solid #d92d20;"></div>
+                <div style="position: absolute; bottom: 1px; font-family: 'IBM Plex Mono', monospace; font-size: 8px; letter-spacing: 0.06em; color: #8a8a8c;">N</div>
+              </div>
+            </div>
+            <div onClick="{{ locateMe }}" style="width: 44px; height: 44px; border-radius: 999px; background: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.12); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+              <div style="width: 15px; height: 15px; border-radius: 50%; border: 2px solid {{ locateColor }}; display: flex; align-items: center; justify-content: center;">
+                <div style="width: 4px; height: 4px; border-radius: 50%; background: {{ locateColor }};"></div>
+              </div>
+            </div>
+          </div>
+
+          <sc-if value="{{ hasResults }}">
+            <div style="position: absolute; top: 106px; left: 14px; width: calc(100% - 130px); border-radius: 12px; background: #fff; box-shadow: 0 6px 22px rgba(0,0,0,0.16); overflow: hidden;">
+              <sc-for list="{{ results }}" as="r" hint-placeholder-count="4">
+                <div onClick="{{ r.pick }}" style="display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; border-top: 1px solid #f0f0f2; cursor: pointer;">
+                  <div style="font-size: 14px;">{{ r.name }}</div>
+                  <div style="font-size: 11.5px; color: #8a8a8c;">{{ r.country }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ noCells }}">
+            <div style="position: absolute; left: 20px; right: 20px; top: 42%; transform: translateY(-50%); text-align: center; padding: 20px 18px; border-radius: 10px; border: 1px solid #e6e6e8; background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.12);">
+              <div style="font-size: 17px; letter-spacing: -0.02em; padding-bottom: 6px;">Not enough people here yet</div>
+              <div style="font-size: 12.5px; color: #767678;">Cells appear at five people or more.</div>
+            </div>
+          </sc-if>
+
+          <div style="position: absolute; left: 14px; bottom: 30px; width: calc(100% - 28px); max-height: 56%; overflow-y: auto; border-radius: 14px; background: #fff; box-shadow: 0 6px 24px rgba(0,0,0,0.18); padding: 10px 16px 14px;">
+            <div onClick="{{ toggleSheet }}" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; min-height: 36px;">
+              <div style="display: flex; align-items: baseline; gap: 8px; min-width: 0;">
+                <div style="font-size: 14px; white-space: nowrap;">Busiest now</div>
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a8a8c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ sheetMeta }}</div>
+              </div>
+              <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap;">{{ sheetToggleLabel }}</div>
+            </div>
+            <sc-if value="{{ sheetOpen }}">
+              <div style="padding: 6px 0 0;">
+                <sc-if value="{{ noCells }}">
+                  <div style="font-size: 13px; color: #767678; padding: 6px 0 2px;">Nothing clears the threshold in view.</div>
+                </sc-if>
+                <div style="display: flex; flex-direction: column;">
+                  <sc-for list="{{ topCells }}" as="t" hint-placeholder-count="0">
+                    <div onClick="{{ t.focus }}" style="display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid #ededef; cursor: pointer;">
+                      <div style="flex: none; width: 10px; height: 10px; border-radius: 3px; background: {{ t.swatch }};"></div>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: {{ t.titleFont }};">{{ t.title }}</div>
+                        <sc-if value="{{ t.showSub }}">
+                          <div style="font-size: 11px; color: #8a8a8c; padding-top: 2px; font-family: 'IBM Plex Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ t.sub }}</div>
+                        </sc-if>
+                      </div>
+                      <div style="flex: none; display: flex; align-items: center; gap: 8px;">
+                        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; min-width: 34px; text-align: right;">{{ t.countLabel }}</div>
+                        <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; width: 12px; text-align: center; color: {{ t.trendColor }};">{{ t.trendGlyph }}</div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 14px 0 2px;">
+                  <div style="height: 6px; flex: 1; border-radius: 3px; background: linear-gradient(to right, #3b4cc0, #00b7ff, #3ddc84, #ffd400, #ff8a00, #ff2d1a);"></div>
+                  <div style="font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: #8a8a8c; white-space: nowrap;">quiet → packed</div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSettings }}">
+        <div style="position: absolute; inset: 0; overflow-y: auto; background: #fff; padding: 54px 22px 44px;">
+          <div onClick="{{ goMap }}" style="display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; padding: 6px 0 16px;">← Map</div>
+          <h1 style="margin: 0 0 18px; font-size: 27px; font-weight: 500; letter-spacing: -0.028em;">Settings</h1>
+
+          <div style="display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 8px; border: 1px solid #e6e6e8; background: #fafafa;">
+            <div style="width: 7px; height: 7px; border-radius: 50%; flex: none; margin-top: 6px; background: {{ statusDot }};"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 14.5px;">{{ statusTitle }}</div>
+              <div style="font-size: 12.5px; line-height: 1.45; color: #767678; padding-top: 3px; text-wrap: pretty;">{{ statusDetail }}</div>
+            </div>
+          </div>
+
+          <div style="padding: 22px 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c;">Consent</div>
+          <div style="display: flex; flex-direction: column; gap: 1px; background: #e6e6e8; border: 1px solid #e6e6e8; border-radius: 8px; overflow: hidden;">
+            <sc-for list="{{ purposes }}" as="p" hint-placeholder-count="3">
+              <div onClick="{{ p.toggle }}" style="display: flex; align-items: flex-start; gap: 14px; padding: 15px 14px; background: #fff; cursor: pointer; min-height: 46px;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 14.5px; padding-bottom: 4px;">{{ p.label }}</div>
+                  <div style="font-size: 11.5px; line-height: 1.45; color: #8a8a8c; font-family: 'IBM Plex Mono', monospace; text-wrap: pretty;">{{ p.stamp }}</div>
+                </div>
+                <div style="flex: none; width: 46px; height: 28px; border-radius: 999px; padding: 3px; display: flex; align-items: center; transition: background 160ms; justify-content: {{ p.j }}; background: {{ p.bg }};">
+                  <div style="width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.28);"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding: 22px 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c;">Private areas</div>
+          <div style="padding: 14px; border: 1px solid #e6e6e8; border-radius: 8px; background: #fafafa;">
+            <div style="font-size: 13px; line-height: 1.5; color: #6b6b6b;">{{ privateAreaNote }}</div>
+            <sc-if value="{{ hasPrivateAreas }}">
+              <div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 0 0;">
+                <sc-for list="{{ privateAreas }}" as="a" hint-placeholder-count="1">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #fff; border: 1px solid #e6e6e8; border-radius: 6px;">
+                    <div style="font-size: 13.5px;">{{ a.label }}</div>
+                    <div onClick="{{ a.remove }}" style="font-size: 12.5px; color: #6b6b6b; cursor: pointer; padding: 4px 2px;">Remove</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <div onClick="{{ markPrivate }}" style="height: 48px; margin-top: 8px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #d4d4d6; background: #fff; font-size: 15px; cursor: pointer;" style-hover="background: #f6f6f6;">Never share where I am now</div>
+
+          <div style="padding: 22px 0 10px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c;">Your rotating ID</div>
+          <div style="padding: 14px; border: 1px solid #e6e6e8; border-radius: 8px; background: #fafafa;">
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; line-height: 1.7; word-break: break-all;">{{ anonId }}</div>
+            <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8a8a8c; padding-top: 6px;">{{ rotationLine }}</div>
+            <div style="font-size: 12.5px; line-height: 1.5; color: #767678; padding-top: 10px; text-wrap: pretty;">{{ outstandingLine }}</div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0 0;">
+            <div onClick="{{ rotateId }}" style="height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #000; background: #fff; font-size: 15px; cursor: pointer;" style-hover="background: #f0f0f0;">Rotate my ID now</div>
+            <div onClick="{{ deleteData }}" style="height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #d92d20; color: #b42318; background: #fff; font-size: 15px; cursor: pointer;" style-hover="background: #fef3f2;">Delete my data now</div>
+            <div onClick="{{ toggleInspector }}" style="height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #d4d4d6; background: #fff; font-size: 15px; cursor: pointer;" style-hover="background: #f6f6f6;">What my phone is sending</div>
+          </div>
+
+          <div style="padding: 20px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; line-height: 1.8; color: #8a8a8c;">Policy {{ policyVersion }} · <a href="#" onClick="{{ goPrivacy }}">Privacy policy</a></div>
+          <div style="padding: 6px 0 0; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; line-height: 1.8; color: #9a9a9c;">{{ simulationNote }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPrivacy }}">
+        <div style="position: absolute; inset: 0; overflow-y: auto; background: #fff; padding: 54px 22px 44px;">
+          <div onClick="{{ goBack }}" style="display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; padding: 6px 0 16px;">← Back</div>
+          <h1 style="margin: 0 0 4px; font-size: 27px; font-weight: 500; letter-spacing: -0.028em;">Privacy</h1>
+          <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; color: #8a8a8c; padding-bottom: 20px;">Version {{ policyVersion }}</div>
+          <div style="display: flex; flex-direction: column; gap: 20px; font-size: 14px; line-height: 1.6; color: #3d3d3f;">
+            <sc-for list="{{ policySections }}" as="s" hint-placeholder-count="8">
+              <div>
+                <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8a8c; padding-bottom: 7px;">{{ s.h }}</div>
+                <div style="text-wrap: pretty;">{{ s.p }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ inspectorOpen }}">
+        <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.32); display: flex; align-items: flex-end;">
+          <div style="width: 100%; max-height: 90%; overflow-y: auto; border-radius: 16px 16px 0 0; background: #fff; padding: 16px 16px 26px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px;">
+              <div style="font-size: 14px;">What's sent</div>
+              <div onClick="{{ toggleInspector }}" style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; padding: 6px;">Close</div>
+            </div>
+            <div style="font-size: 14.5px; line-height: 1.55; color: #3d3d3f; padding-bottom: 16px;">{{ plainSummary }}</div>
+
+            <div style="display: flex; flex-direction: column; gap: 1px; background: #e6e6e8; border: 1px solid #e6e6e8; border-radius: 8px; overflow: hidden;">
+              <sc-for list="{{ sentRows }}" as="r" hint-placeholder-count="3">
+                <div style="background: #fafafa; padding: 12px 13px; display: flex; gap: 12px; align-items: baseline;">
+                  <div style="flex: 1; min-width: 0; font-size: 13.5px;">{{ r.k }}</div>
+                  <div style="flex: none; font-size: 13.5px; color: #6b6b6b; text-align: right;">{{ r.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="padding: 16px 0 8px; font-size: 13.5px; color: #6b6b6b;">Never leaves your phone</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ neverSent }}" as="n" hint-placeholder-count="4">
+                <div style="font-size: 12.5px; padding: 7px 11px; border-radius: 999px; background: #f2f2f4; color: #6b6b6b; text-decoration: line-through;">{{ n }}</div>
+              </sc-for>
+            </div>
+            <div onClick="{{ toggleSimulated }}" style="display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 13px; border: 1px solid #e6e6e8; border-radius: 8px; cursor: pointer;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 14px; padding-bottom: 3px;">Simulated feed</div>
+                <div style="font-size: 12.5px; color: #767678;">Prototype data. Off shows the real empty state.</div>
+              </div>
+              <div style="flex: none; width: 46px; height: 28px; border-radius: 999px; padding: 3px; display: flex; align-items: center; justify-content: {{ simJ }}; background: {{ simBg }};">
+                <div style="width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.28);"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ toast }}">
+        <div style="position: absolute; top: 112px; left: 14px; width: calc(100% - 28px); padding: 13px 15px; border-radius: 10px; background: #000; color: #fff; font-size: 13.5px; line-height: 1.5; box-shadow: 0 6px 20px rgba(0,0,0,0.28); text-wrap: pretty;">{{ toast }}</div>
+      </sc-if>
+    </div>
+  </x-import>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:460,&quot;height&quot;:980},&quot;consentVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A' | 'B'&quot;,&quot;section&quot;:&quot;Variants&quot;},&quot;heatmapTreatment&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;blur&quot;,&quot;hex&quot;],&quot;default&quot;:&quot;blur&quot;,&quot;tsType&quot;:&quot;'blur' | 'hex'&quot;,&quot;section&quot;:&quot;Variants&quot;},&quot;sheetVariant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;A&quot;,&quot;B&quot;],&quot;default&quot;:&quot;A&quot;,&quot;tsType&quot;:&quot;'A' | 'B'&quot;,&quot;section&quot;:&quot;Variants&quot;},&quot;simulatedFeed&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+const POLICY = '2026-07-01';
+const CKEY = 'pulse.consent.v1';
+const STOPS = [[0, '#3b4cc0'], [8, '#00b7ff'], [16, '#3ddc84'], [26, '#ffd400'], [36, '#ff8a00'], [50, '#ff2d1a']];
+
+class Component extends DCLogic {
+  state = {
+    screen: 'consent', consentVariant: 'A', heat: 'blur', sheetVariant: 'A',
+    consent: { location: false, analytics: false, updates: false }, stamps: {},
+    anon: null, geo: 'unknown', cells: [], cats: [], city: 'Vienna',
+    myCell: null, heldMs: null, lastSent: null, lastPoll: null,
+    inspectorOpen: false, payloadOpen: false, sheetOpen: true,
+    simulated: true, outstanding: 0, toast: null, query: '', bearing: 0, locating: false,
+    inPrivateArea: false, privateZones: [],
+  };
+
+  componentDidMount() {
+    this.setState({
+      consentVariant: this.props.consentVariant || 'A',
+      heat: this.props.heatmapTreatment || 'blur',
+      sheetVariant: this.props.sheetVariant || 'A',
+      simulated: this.props.simulatedFeed !== false,
+    });
+    this.boot();
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.pollTimer); clearInterval(this.reportTimer); clearTimeout(this.toastTimer);
+    if (this.map) { this.map.remove(); this.map = null; }
+  }
+
+  async boot() {
+    const [lp, be] = await Promise.all([import('./location-privacy.js'), import('./mock-backend.js')]);
+    this.lp = lp; this.be = be;
+    await new Promise((res) => { const t = () => (window.h3 && window.maplibregl) ? res() : setTimeout(t, 60); t(); });
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(CKEY) || 'null'); } catch (e) {}
+    const patch = { anon: lp.anonIdentity(), privateZones: lp.privateZones() };
+    if (saved && saved.version === POLICY) {
+      patch.consent = saved.consent || patch.consent;
+      patch.stamps = saved.stamps || {};
+      patch.screen = 'map';
+    }
+    patch.geo = await lp.permissionState();
+    this.setState(patch, () => {
+      if (this.state.simulated) this.seed();
+      this.refresh();
+      if (patch.screen === 'map') this.locateMe(true); // never prompt behind the consent screen
+      if (this.sharing()) this.report();
+    });
+    this.pollTimer = setInterval(() => {
+      if (this.state.simulated) { this.be.driftSimulated(); this.seed(0.15); }
+      this.refresh();
+    }, 30000);
+    this.reportTimer = setInterval(() => { if (this.sharing()) this.report(); }, 180000);
+  }
+
+  seed(intensity = 1) { this.be.seedSimulated(this.state.city, this.lp.cellFromLatLng, intensity); }
+  sharing() { return !!(this.state.consent.location && this.state.geo !== 'denied'); }
+
+  persist(consent, stamps) {
+    try { localStorage.setItem(CKEY, JSON.stringify({ version: POLICY, consent, stamps, updatedAt: new Date().toISOString() })); } catch (e) {}
+  }
+
+  say(msg) {
+    clearTimeout(this.toastTimer);
+    this.setState({ toast: msg });
+    this.toastTimer = setTimeout(() => this.setState({ toast: null }), 4600);
+  }
+
+  setConsent(key, value) {
+    const consent = { ...this.state.consent, [key]: value };
+    const stamps = { ...this.state.stamps, [key]: value ? new Date().toISOString() : null };
+    this.persist(consent, stamps);
+    this.setState({ consent, stamps }, () => {
+      if (key !== 'location') return;
+      if (value) this.report();
+      else this.purge('Sharing off. Your outstanding pings were deleted');
+    });
+  }
+
+  purge(prefix) {
+    const n = this.be ? this.be.deleteByAnonId(this.state.anon.id) : 0;
+    this.setState({ myCell: null, outstanding: 0 });
+    this.refresh();
+    this.say(prefix + (n ? ' (' + n + ' removed).' : '.'));
+  }
+
+  async report() {
+    if (!this.sharing()) return;
+    try {
+      const cell = await this.lp.acquireCoarseCell();
+      if (this.lp.isPrivate(cell.privateKey)) {
+        this.setState({ myCell: null, geo: 'granted', inPrivateArea: true });
+        return; // marked private: nothing is sent from here, ever
+      }
+      const cats = this.state.cats;
+      this.be.insertPing({ h3_index: cell.h3_index, category: cats.length === 1 ? cats[0] : 'sights', anon_id: this.state.anon.id });
+      this.setState({ myCell: cell.h3_index, heldMs: cell.heldMs, lastSent: Date.now(), geo: 'granted', inPrivateArea: false, outstanding: this.be.outstandingFor(this.state.anon.id) },
+        () => { this.flyToCell(cell.h3_index); this.refresh(); });
+    } catch (e) {
+      this.setState({ geo: 'denied' });
+      this.say('Location is unavailable, so nothing is being sent. The map still works — pick a city under the filters.');
+    }
+  }
+
+  refresh() {
+    if (!this.be) return;
+    const rows = this.be.aggregateDensity(this.state.cats);
+    this.setState({ cells: rows, lastPoll: Date.now(), outstanding: this.state.anon ? this.be.outstandingFor(this.state.anon.id) : 0 }, () => this.paint());
+  }
+
+  // ---- map ----
+  mapRef = (el) => {
+    this.mapEl = el;
+    if (el && !this.map && window.maplibregl) this.initMap(el);
+  };
+
+  initMap(el) {
+    const hit = this.be && this.be.CITIES.find((x) => x.name === this.state.city);
+    const c = hit ? [hit.lng, hit.lat] : [16.3738, 48.2082];
+    this.map = new window.maplibregl.Map({
+      container: el,
+      style: {
+        version: 8,
+        sources: { base: { type: 'raster', tiles: ['https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'], tileSize: 256, attribution: '© OpenStreetMap contributors © CARTO' } },
+        layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#f5f5f5' } }, { id: 'base', type: 'raster', source: 'base' }],
+      },
+      center: c || [16.3738, 48.2082],
+      zoom: 12.2,
+      attributionControl: { compact: true },
+    });
+    this.map.on('rotate', () => this.setState({ bearing: -this.map.getBearing() }));
+    this.map.on('moveend', () => this.syncCityToView());
+    this.map.on('load', () => {
+      const empty = { type: 'FeatureCollection', features: [] };
+      this.map.addSource('pts', { type: 'geojson', data: empty });
+      this.map.addSource('poly', { type: 'geojson', data: empty });
+      this.map.addLayer({
+        id: 'heat', type: 'heatmap', source: 'pts',
+        paint: {
+          'heatmap-weight': ['interpolate', ['linear'], ['get', 'count'], 0, 0.15, 50, 1],
+          'heatmap-intensity': 1.1,
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 22, 12, 44, 15, 90],
+          'heatmap-opacity': 0.78,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+            0, 'rgba(59,76,192,0)', 0.12, '#3b4cc0', 0.32, '#00b7ff', 0.52, '#3ddc84', 0.7, '#ffd400', 0.86, '#ff8a00', 1, '#ff2d1a'],
+        },
+      });
+      const ramp = ['interpolate', ['linear'], ['get', 'count']];
+      STOPS.forEach(([v, c2]) => ramp.push(v, c2));
+      this.map.addLayer({ id: 'hexfill', type: 'fill', source: 'poly', paint: { 'fill-color': ramp, 'fill-opacity': 0.55 } });
+      this.map.addLayer({ id: 'hexline', type: 'line', source: 'poly', paint: { 'line-color': '#ffffff', 'line-width': 1, 'line-opacity': 0.8 } });
+      this.map.addLayer({ id: 'me', type: 'circle', source: 'poly', filter: ['==', ['get', 'mine'], true], paint: { 'circle-radius': 5, 'circle-color': '#000', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
+      this.mapReady = true;
+      this.paint();
+    });
+  }
+
+  paint() {
+    if (!this.mapReady || !this.map) return;
+    const rows = this.state.cells;
+    const pts = { type: 'FeatureCollection', features: [] };
+    const poly = { type: 'FeatureCollection', features: [] };
+    for (const r of rows) {
+      const c = this.lp.cellCenter(r.h3_index);
+      pts.features.push({ type: 'Feature', properties: { count: r.approx_count }, geometry: { type: 'Point', coordinates: [c.lng, c.lat] } });
+      poly.features.push({
+        type: 'Feature',
+        properties: { count: r.approx_count, mine: r.h3_index === this.state.myCell },
+        geometry: { type: 'Polygon', coordinates: [this.lp.cellPolygon(r.h3_index)] },
+      });
+    }
+    this.map.getSource('pts').setData(pts);
+    this.map.getSource('poly').setData(poly);
+    const blur = this.state.heat === 'blur';
+    this.map.setLayoutProperty('heat', 'visibility', blur ? 'visible' : 'none');
+    this.map.setLayoutProperty('hexfill', 'visibility', blur ? 'none' : 'visible');
+    this.map.setLayoutProperty('hexline', 'visibility', blur ? 'none' : 'visible');
+  }
+
+  flyToCell(h3) {
+    if (!this.map) return;
+    const c = this.lp.cellCenter(h3);
+    this.map.easeTo({ center: [c.lng, c.lat], zoom: Math.max(this.map.getZoom(), 12.6), duration: 900 });
+  }
+
+  // Centre on the user without ever handling a coordinate here: the privacy
+  // module returns a coarse cell, and we fly to that cell's centre.
+  async locateMe(silent = false) {
+    if (!this.lp || this.state.locating) return;
+    this.setState({ locating: true });
+    try {
+      const cell = await this.lp.acquireCoarseCell();
+      const c = this.lp.cellCenter(cell.h3_index);
+      const city = this.be.nearestCity(c.lat, c.lng);
+      this.setState({ geo: 'granted', locating: false, city: city.name }, () => {
+        if (this.state.simulated) { this.be.clearSimulated(); this.seed(); }
+        if (this.map) this.map.easeTo({ center: [c.lng, c.lat], zoom: 12.6, duration: 900 });
+        this.refresh();
+      });
+    } catch (e) {
+      this.setState({ geo: 'denied', locating: false });
+      if (!silent) this.say('Location unavailable. Search for a city instead.');
+    }
+  }
+
+  async markPrivate() {
+    try {
+      const cell = await this.lp.acquireCoarseCell();
+      const list = this.lp.addPrivateZone(cell.privateKey);
+      const removed = this.be.deleteByAnonId(this.state.anon.id);
+      this.setState({ privateZones: list, myCell: null, inPrivateArea: true, outstanding: 0 }, () => {
+        this.refresh();
+        this.say('This area is private now. Nothing will be sent from here' + (removed ? ', and ' + removed + ' earlier report(s) were deleted' : '') + '.');
+      });
+    } catch (e) {
+      this.say('Location unavailable, so this area can’t be marked.');
+    }
+  }
+
+  // Panning anywhere in the world brings that city's aggregate into view.
+  syncCityToView() {
+    if (!this.map || !this.be) return;
+    const c = this.map.getCenter();
+    const near = this.be.nearestCity(c.lat, c.lng);
+    if (!near || near.name === this.state.city) return;
+    const far = Math.abs(near.lat - c.lat) > 1.2 || Math.abs(near.lng - c.lng) > 1.6;
+    this.setState({ city: near.name }, () => {
+      if (this.state.simulated && !far) { this.be.clearSimulated(); this.seed(); }
+      this.refresh();
+    });
+  }
+
+  pickCity(name) {
+    this.setState({ city: name, query: '' }, () => {
+      if (this.state.simulated) { this.be.clearSimulated(); this.seed(); }
+      const c = this.be.CITIES.find((x) => x.name === name);
+      if (this.map && c) this.map.easeTo({ center: [c.lng, c.lat], zoom: 12.2, duration: 900 });
+      this.refresh();
+    });
+  }
+
+  colorFor(count) {
+    let out = STOPS[0][1];
+    for (const [v, c] of STOPS) if (count >= v) out = c;
+    return out;
+  }
+
+  ago(ts) {
+    if (!ts) return 'never';
+    const s = Math.round((Date.now() - ts) / 1000);
+    return s < 60 ? s + 's ago' : Math.round(s / 60) + 'm ago';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const sharing = this.sharing();
+    const on = '#000';
+    const off = '#d4d4d6';
+    const mono = "'IBM Plex Mono', monospace";
+    const sans = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+    const purposeDefs = [
+      ['location', 'Share my area', 'A ~460 m cell, while open.'],
+      ['analytics', 'Usage analytics', 'Screen counts. No location.'],
+      ['updates', 'Product updates', 'Only if you ask.'],
+    ];
+    const purposes = purposeDefs.map(([key, label, detail]) => ({
+      key, label, detail,
+      stamp: s.consent[key] ? 'on \u00b7 ' + (s.stamps[key] || '').slice(0, 10) : 'off',
+      j: s.consent[key] ? 'flex-end' : 'flex-start',
+      bg: s.consent[key] ? on : off,
+      toggle: () => this.setConsent(key, !s.consent[key]),
+    }));
+
+    const catDefs = [['all', 'All'], ['nightlife', 'Nightlife'], ['food', 'Food'], ['sights', 'Sights'], ['outdoors', 'Outdoors']];
+    const chips = catDefs.map(([key, label]) => {
+      const active = key === 'all' ? s.cats.length === 0 : s.cats.includes(key);
+      return {
+        key, label, active,
+        bg: active ? '#000' : '#fff', fg: active ? '#fff' : '#000', bd: active ? '#000' : '#d4d4d6',
+        toggle: () => {
+          if (key === 'all') { this.setState({ cats: [] }, () => this.refresh()); return; }
+          const next = s.cats.includes(key) ? s.cats.filter((c) => c !== key) : s.cats.concat(key);
+          this.setState({ cats: next }, () => this.refresh());
+        },
+      };
+    });
+
+    const seenLabel = new Set();
+    const topCells = [];
+    for (const r of s.cells) {
+      if (topCells.length >= 5) break;
+      const c = this.lp ? this.lp.cellCenter(r.h3_index) : { lat: 0, lng: 0 };
+      const name = this.be ? this.be.nearestLabel(s.city, c.lat, c.lng) : s.city;
+      if (seenLabel.has(name)) continue; // adjacent cells collapse onto one place name
+      seenLabel.add(name);
+      const isA = s.sheetVariant === 'A';
+      topCells.push({
+        rank: String(topCells.length + 1),
+        title: name,
+        titleFont: isA ? sans : mono,
+        sub: isA ? r.top_category : '',
+        showSub: isA,
+        countLabel: '~' + r.approx_count,
+        trendGlyph: r.trend > 0 ? '↑' : r.trend < 0 ? '↓' : '·',
+        trendColor: r.trend > 0 ? '#b42318' : r.trend < 0 ? '#0b7285' : '#9a9a9c',
+        swatch: this.colorFor(r.approx_count),
+        focus: () => this.flyToCell(r.h3_index),
+      });
+    }
+
+    const results = (this.be ? this.be.searchCities(s.query) : []).map((c) => ({
+      name: c.name, country: c.country, pick: () => this.pickCity(c.name),
+    }));
+
+    const variantPills = [
+      ['Consent A', s.consentVariant === 'A', () => this.setState({ consentVariant: 'A' })],
+      ['Consent B', s.consentVariant === 'B', () => this.setState({ consentVariant: 'B' })],
+      ['Heat blur', s.heat === 'blur', () => this.setState({ heat: 'blur' }, () => this.paint())],
+      ['Heat hex', s.heat === 'hex', () => this.setState({ heat: 'hex' }, () => this.paint())],
+      ['List A', s.sheetVariant === 'A', () => this.setState({ sheetVariant: 'A' })],
+      ['List B', s.sheetVariant === 'B', () => this.setState({ sheetVariant: 'B' })],
+    ].map(([label, active, pick]) => ({ label, pick, bg: active ? '#000' : 'transparent', fg: active ? '#fff' : '#6b6b6b' }));
+
+    const cityChipsUnused = null;
+
+    const payloadText = 'POST /pings\n{\n  "h3_index": "' + (s.myCell || '88…  (nothing sent yet)') + '",\n  "category": "' + (s.cats.length === 1 ? s.cats[0] : 'sights') + '",\n  "anon_id": "' + (s.anon ? s.anon.id : '…') + '"\n}';
+    const discardedText = s.myCell ? 'held ' + (s.heldMs || 0) + ' ms, never sent' : 'none read yet';
+
+    const rotationLine = s.anon ? 'rotates ' + new Date(s.anon.rotatesAt).toISOString().slice(0, 10) : '';
+
+    const inspectorRows = [
+      { k: 'Your area', v: s.myCell ? 'a 460 m square' : 'not shared', color: '#000' },
+      { k: 'Last update', v: s.lastSent ? this.ago(s.lastSent) : 'never', color: '#000' },
+      { k: 'Kept for', v: '20 minutes', color: '#000' },
+    ];
+    const sentRows = inspectorRows;
+    const neverSent = ['your address', 'your name', 'your phone', 'any history'];
+    const plainSummary = s.inPrivateArea
+      ? 'You are in an area you marked private. Nothing is being sent from here.'
+      : sharing
+      ? 'Your phone says “someone is in this 460 m square” — nothing else. It is forgotten after 20 minutes.'
+      : 'Nothing is being sent right now. You are only looking.';
+
+    return {
+      policyVersion: POLICY,
+      isConsent: s.screen === 'consent', isMap: s.screen === 'map', isSettings: s.screen === 'settings', isPrivacy: s.screen === 'privacy',
+      consentA: s.consentVariant === 'A', consentB: s.consentVariant === 'B',
+      facts: [
+        { k: 'Sent', v: 'A 460 m area and a category.' },
+        { k: 'Never sent', v: 'Your address, name, or phone. Areas with fewer than five people are never shown, so your home can’t appear on its own.' },
+        { k: 'Kept', v: '20 minutes.' },
+        { k: 'Withdraw', v: 'One tap. Deletes what exists.' },
+      ],
+      badges: ['no coordinates', '20 min', 'no device ID'],
+      purposes, chips, topCells, variantPills, inspectorRows, sentRows, neverSent, plainSummary, results,
+      privateAreas: s.privateZones.map((z, i) => ({
+        label: 'Private area ' + (i + 1) + ' · ~250 m',
+        remove: () => this.setState({ privateZones: this.lp.removePrivateZone(z.key) }),
+      })),
+      hasPrivateAreas: s.privateZones.length > 0,
+      privateAreaNote: s.inPrivateArea
+        ? 'You are in a private area. Nothing is being sent.'
+        : 'Mark where you live or work. It covers about 250 m — small enough that a busy street nearby still counts. The list stays on your phone.',
+      markPrivate: () => this.markPrivate(),
+      query: s.query,
+      hasQuery: s.query.length > 0,
+      hasResults: results.length > 0,
+      showChips: results.length === 0,
+      bearing: s.bearing,
+      locateColor: s.geo === 'denied' ? '#9a9a9c' : '#000',
+      onQuery: (e) => this.setState({ query: e.target.value }),
+      clearQuery: () => this.setState({ query: '' }),
+      resetNorth: () => { if (this.map) this.map.easeTo({ bearing: 0, pitch: 0, duration: 400 }); },
+      locateMe: () => this.locateMe(),
+      payloadText, discardedText, rotationLine,
+      anonId: s.anon ? s.anon.id : '…',
+      sharing, noCells: s.cells.length === 0,
+      inspectorOpen: s.inspectorOpen, payloadOpen: s.payloadOpen, sheetOpen: s.sheetOpen, toast: s.toast,
+      payloadToggleLabel: s.payloadOpen ? 'Hide' : 'Show',
+      sheetToggleLabel: s.sheetOpen ? 'Hide' : 'Show',
+      sheetMeta: s.city + ' · updated ' + this.ago(s.lastPoll),
+      sheetFootnote: '',
+      simulationNote: s.simulated ? 'Simulated feed on.' : 'Simulated feed off.',
+      simJ: s.simulated ? 'flex-end' : 'flex-start', simBg: s.simulated ? '#000' : '#d4d4d6',
+      statusDot: s.inPrivateArea ? '#8a8a8c' : sharing ? '#12b76a' : '#9a9a9c',
+      statusTitle: s.inPrivateArea ? 'Paused — private area' : sharing ? 'Sharing on' : s.geo === 'denied' ? 'Location unavailable' : 'Sharing off',
+      statusDetail: s.inPrivateArea
+        ? 'You marked this area private, so nothing is sent from here.'
+        : sharing
+        ? 'A cell every 3 min. ' + s.outstanding + ' row(s), all expiring within 20 min.'
+        : 'Nothing is sent. Full map access.',
+      outstandingLine: s.outstanding + ' row(s) linked to this ID.',
+      policySections: [
+        { h: 'Collected', p: 'An H3 cell ID (res 8, ~460 m), a category, and a rotating pseudonymous ID. Nothing else — no coordinates, no device ID, no account.' },
+        { h: 'On device', p: 'Your position is converted to a cell ID on your phone, then discarded. It is never transmitted or stored.' },
+        { h: 'Private areas', p: 'You can mark places — home, work — that are never reported. A marked area covers roughly 250 m, small enough not to blank out a busy street nearby. The list stays on your phone and is never sent.' },
+        { h: 'Retention', p: '20 minutes. A scheduled job deletes older rows every minute. There is no location history.' },
+        { h: 'Aggregation', p: 'Distinct contributors per cell. Cells under five never leave the database. Counts rounded to five.' },
+        { h: 'Legal basis', p: 'Consent, Art. 6(1)(a) GDPR, per purpose, recorded with a timestamp and policy version. Browsing needs none.' },
+        { h: 'Withdrawal', p: 'One tap in Settings, immediate. It deletes pings already sent, not just future ones.' },
+        { h: 'Sharing', p: 'No data is sold or shared with third parties.' },
+        { h: 'Contact', p: 'privacy@pulse.example' },
+      ],
+      footerNote: 'Prototype · real MapLibre map, real client-side H3 conversion, mocked backend enforcing the same rules as supabase/migrations/0001_init.sql. Crowd data is simulated; toggle it off in the {} inspector to see the honest empty state.',
+      mapRef: this.mapRef,
+      goShare: () => {
+        const consent = { ...s.consent, location: true };
+        const stamps = { ...s.stamps, location: new Date().toISOString() };
+        this.persist(consent, stamps);
+        this.setState({ consent, stamps, screen: 'map' }, () => { this.locateMe(true); this.report(); });
+      },
+      goBrowse: () => {
+        this.persist(s.consent, s.stamps);
+        this.setState({ screen: 'map' }, () => this.locateMe(true));
+      },
+      goMap: () => this.setState({ screen: 'map' }),
+      goSettings: () => this.setState({ screen: 'settings', inspectorOpen: false }),
+      goPrivacy: () => this.setState({ screen: 'privacy', from: s.screen }),
+      goBack: () => this.setState({ screen: s.consent.location || s.stamps.location !== undefined ? 'settings' : 'consent' }),
+      toggleInspector: () => this.setState({ inspectorOpen: !s.inspectorOpen }),
+      togglePayload: () => this.setState({ payloadOpen: !s.payloadOpen }),
+      toggleSheet: () => this.setState({ sheetOpen: !s.sheetOpen }),
+      toggleSimulated: () => {
+        const next = !s.simulated;
+        this.setState({ simulated: next }, () => {
+          if (next) this.seed(); else this.be.clearSimulated();
+          this.refresh();
+        });
+      },
+      rotateId: () => {
+        const anon = this.lp.anonIdentity(true);
+        this.setState({ anon, outstanding: 0 }, () => this.say('New ID issued. Nothing sent before is linked to it.'));
+      },
+      deleteData: () => this.purge('Deleted'),
+    };
+  }
+}
+
+</script>
+</body>
+</html>
