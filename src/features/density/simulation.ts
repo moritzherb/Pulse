@@ -4,9 +4,22 @@
  * Each hotspot has a category, a peak crowd size and a weekly rhythm. The
  * expected number of devices at any moment is peak x rhythm(category, day,
  * hour) x a little noise, spread over the hotspot's cell and its neighbours.
+ *
+ * Shared by scripts/seed-vienna.ts (which writes it into the database) and the
+ * app's simulated feed (development builds), so both always agree.
+ * Dependency-free apart from h3-js, and imported by relative path so it also
+ * runs under plain Node (tsx).
  */
+import { cellToLatLng, cellToParent, gridDisk, latLngToCell } from 'h3-js';
 
-export type Category = 'nightlife' | 'food' | 'sights' | 'outdoors';
+import { K_ANONYMITY } from '../../../supabase/functions/_shared/levels.ts';
+import {
+  H3_RESOLUTION,
+  REGION_RESOLUTION,
+  type Category,
+} from '../../../supabase/functions/_shared/types.ts';
+
+export type { Category };
 
 export interface Hotspot {
   name: string;
@@ -94,11 +107,16 @@ const viennaFormat = new Intl.DateTimeFormat('en-GB', {
 
 /** Local Vienna day-of-week (ISO) and hour for a UTC instant. */
 export function viennaClock(at: Date): { isoDay: number; hour: number } {
-  const parts = viennaFormat.formatToParts(at);
-  const wd = parts.find((p) => p.type === 'weekday')?.value ?? 'Mon';
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
-  const isoDay = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(wd) + 1;
-  return { isoDay, hour };
+  try {
+    const parts = viennaFormat.formatToParts(at);
+    const wd = parts.find((p) => p.type === 'weekday')?.value ?? 'Mon';
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0);
+    const isoDay = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(wd) + 1;
+    if (isoDay > 0) return { isoDay, hour };
+  } catch {
+    // Engines without time-zone data: fall back to the device's own clock.
+  }
+  return { isoDay: at.getDay() === 0 ? 7 : at.getDay(), hour: at.getHours() };
 }
 
 /** 0..1 rhythm for a category at a moment, with smooth interpolation within the hour. */
@@ -120,4 +138,103 @@ export function hash01(s: string): number {
     h = Math.imul(h, 16777619);
   }
   return ((h >>> 0) % 10000) / 10000;
+}
+
+// ------------------------------------------------------------ cell model ---
+
+export interface SimCell {
+  cell: string;
+  region: string;
+  lng: number;
+  lat: number;
+  /** Hotspot contributing most to this cell: names the place. */
+  main: Hotspot;
+  parts: { spot: Hotspot; share: number }[];
+  /** Most devices the cell ever needs in a week, with noise headroom. */
+  capacity: number;
+}
+
+let modelCache: SimCell[] | null = null;
+
+/** Every cell the hotspots spill into, with each hotspot's share. */
+export function simulatedCells(): SimCell[] {
+  if (modelCache) return modelCache;
+  const byCell = new Map<string, { spot: Hotspot; share: number }[]>();
+  for (const spot of HOTSPOTS) {
+    const centre = latLngToCell(spot.lat, spot.lng, H3_RESOLUTION);
+    const seen = new Set<string>();
+    FALLOFF.forEach((share, ring) => {
+      for (const cell of gridDisk(centre, ring)) {
+        if (seen.has(cell)) continue;
+        seen.add(cell);
+        const jitter = 0.8 + 0.4 * hash01(cell + spot.name);
+        const parts = byCell.get(cell) ?? [];
+        parts.push({ spot, share: share * jitter });
+        byCell.set(cell, parts);
+      }
+    });
+  }
+  modelCache = [...byCell].map(([cell, parts]) => {
+    const [lat, lng] = cellToLatLng(cell);
+    const main = parts.reduce((a, b) =>
+      b.spot.peak * b.share > a.spot.peak * a.share ? b : a,
+    ).spot;
+    const c: SimCell = {
+      cell,
+      region: cellToParent(cell, REGION_RESOLUTION),
+      lng,
+      lat,
+      main,
+      parts,
+      capacity: 0,
+    };
+    c.capacity = weeklyMax(c);
+    return c;
+  });
+  return modelCache;
+}
+
+function base(c: SimCell, at: Date): number {
+  return c.parts.reduce((s, p) => s + p.spot.peak * p.share * rhythm(p.spot.category, at), 0);
+}
+
+function weeklyMax(c: SimCell): number {
+  const monday = Date.UTC(2026, 0, 5); // any full week works
+  let max = 0;
+  for (let t = monday; t < monday + 7 * 86_400_000; t += 15 * 60_000) {
+    max = Math.max(max, base(c, new Date(t)));
+  }
+  return Math.ceil(max * 1.12) + 1;
+}
+
+/** Expected distinct devices in a cell at a moment (noise changes every 5 minutes). */
+export function expectedDevices(c: SimCell, at: Date): number {
+  const slot = Math.floor(at.getTime() / 300_000);
+  const noise = 0.88 + 0.24 * hash01(`${c.cell}:${slot}`);
+  return Math.max(0, Math.round(base(c, at) * noise));
+}
+
+/** A snapshot as the server would publish it: under k is 0, otherwise rounded to 5. */
+export function publishedDevices(devices: number): number {
+  return devices < K_ANONYMITY ? 0 : Math.max(K_ANONYMITY, Math.round(devices / 5) * 5);
+}
+
+/**
+ * Typical devices per local weekday and hour, built like get_cell_detail():
+ * four k-anonymous 15-minute snapshots per hour, averaged. One reference
+ * week is enough for the simulation, which repeats weekly.
+ */
+export function simulatedUsual(c: SimCell): { d: number; h: number; v: number }[] {
+  const out: { d: number; h: number; v: number }[] = [];
+  const monday = Date.UTC(2026, 0, 4, 23); // 00:00 Monday in Vienna (CET)
+  for (let d = 1; d <= 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      const start = monday + ((d - 1) * 24 + h) * 3_600_000;
+      let sum = 0;
+      for (let q = 0; q < 4; q++)
+        sum += publishedDevices(expectedDevices(c, new Date(start + q * 900_000)));
+      out.push({ d, h, v: Math.round((sum / 4) * 10) / 10 });
+    }
+  }
+  return out;
 }

@@ -11,8 +11,9 @@
  * What it writes, and how it is marked so it can never be mistaken for real data:
  *   - auth.users      synthetic anonymous users, raw_app_meta_data.synthetic = true
  *   - pings           from those users only, through the same tables real pings use
- *   - places, venues  one place per hotspot and one venue per seeded cell, source = 'seed',
- *                     venue names end in "(simulated)"
+ *   - places, venues  one place per hotspot, source = 'seed'; and, only while no OSM venues
+ *                     are imported, one hidden venue (rank 0) per cell for its category,
+ *                     named "... (simulated)"
  *   - cell_hourly     k-anonymous hourly history, with snapshot_runs
  *
  * Live mode writes raw pings and then runs public.refresh_live_cells(), so the
@@ -20,13 +21,16 @@
  * Uses a direct Postgres connection (Supabase: Settings -> Database -> Connection
  * string). Never point it at a production project.
  */
-import { cellToLatLng, cellToParent, gridDisk, latLngToCell } from 'h3-js';
 import postgres from 'postgres';
 
 import { K_ANONYMITY } from '../supabase/functions/_shared/levels.ts';
-import { H3_RESOLUTION, REGION_RESOLUTION } from '../supabase/functions/_shared/types.ts';
 
-import { FALLOFF, hash01, HOTSPOTS, rhythm, type Hotspot } from './seed/vienna.ts';
+import {
+  expectedDevices,
+  HOTSPOTS,
+  simulatedCells,
+  type SimCell,
+} from '../src/features/density/simulation.ts';
 
 // ------------------------------------------------------------------ args ---
 
@@ -60,76 +64,12 @@ if (!isLocal && !flag('yes')) {
 const sql = postgres(url, { prepare: false, onnotice: () => {}, max: 4 });
 
 // ----------------------------------------------------------------- model ---
+// The crowd model lives in src/features/density/simulation.ts, shared with the
+// app's simulated feed.
 
-interface ModelCell {
-  cell: string;
-  region: string;
-  lng: number;
-  lat: number;
-  /** Hotspot contributing most to this cell: names the place and the venue. */
-  main: Hotspot;
-  parts: { spot: Hotspot; share: number }[];
-  /** Upper bound of devices this cell can need, used to size the pool. */
-  capacity: number;
-}
-
-function buildModel(): ModelCell[] {
-  const byCell = new Map<string, { parts: { spot: Hotspot; share: number }[] }>();
-  for (const spot of HOTSPOTS) {
-    const centre = latLngToCell(spot.lat, spot.lng, H3_RESOLUTION);
-    const seen = new Set<string>();
-    FALLOFF.forEach((share, ring) => {
-      for (const cell of gridDisk(centre, ring)) {
-        if (seen.has(cell)) continue;
-        seen.add(cell);
-        const jitter = 0.8 + 0.4 * hash01(cell + spot.name);
-        const entry = byCell.get(cell) ?? { parts: [] };
-        entry.parts.push({ spot, share: share * jitter });
-        byCell.set(cell, entry);
-      }
-    });
-  }
-  return [...byCell].map(([cell, { parts }]) => {
-    const [lat, lng] = cellToLatLng(cell);
-    const main = parts.reduce((a, b) =>
-      b.spot.peak * b.share > a.spot.peak * a.share ? b : a,
-    ).spot;
-    const model = {
-      cell,
-      region: cellToParent(cell, REGION_RESOLUTION),
-      lng,
-      lat,
-      main,
-      parts,
-      capacity: 0,
-    };
-    model.capacity = weeklyMax(model);
-    return model;
-  });
-}
-
-/** Most devices the cell ever needs in a week (15-minute steps), plus noise headroom. */
-function weeklyMax(c: ModelCell): number {
-  const monday = Date.UTC(2026, 0, 5); // any full week works
-  let max = 0;
-  for (let t = monday; t < monday + 7 * 86_400_000; t += 15 * 60_000) {
-    const at = new Date(t);
-    max = Math.max(
-      max,
-      c.parts.reduce((s, p) => s + p.spot.peak * p.share * rhythm(p.spot.category, at), 0),
-    );
-  }
-  return Math.ceil(max * 1.12) + 1;
-}
-
-/** Expected distinct devices in a cell at a moment. */
-function expected(c: ModelCell, at: Date): number {
-  // Noise that changes every 5 minutes, stable within that slot.
-  const slot = Math.floor(at.getTime() / 300_000);
-  const noise = 0.88 + 0.24 * hash01(`${c.cell}:${slot}`);
-  const base = c.parts.reduce((s, p) => s + p.spot.peak * p.share * rhythm(p.spot.category, at), 0);
-  return Math.max(0, Math.round(base * noise));
-}
+type ModelCell = SimCell;
+const buildModel = simulatedCells;
+const expected = expectedDevices;
 
 const roundToFive = (n: number) => Math.max(K_ANONYMITY, Math.round(n / 5) * 5);
 
@@ -176,17 +116,27 @@ async function seedStatic(model: ModelCell[]) {
     insert into public.places ${sql(places, 'name', 'kind', 'geom', 'source', 'source_id')}
     on conflict (source, source_id) do update set name = excluded.name, geom = excluded.geom`;
 
-  const venues = model.map((c) => ({
-    name: `${c.main.name} (simulated)`,
-    category: c.main.category,
-    geom: `SRID=4326;POINT(${c.lng} ${c.lat})`,
-    cell: c.cell,
-    source: 'seed',
-    source_id: c.cell,
-  }));
-  await sql`
-    insert into public.venues ${sql(venues, 'name', 'category', 'geom', 'cell', 'source', 'source_id')}
-    on conflict (source, source_id) do update set name = excluded.name, category = excluded.category`;
+  // Simulated venues only give cells a category when no real OSM venues are
+  // imported yet (scripts/import-osm.ts). rank 0: never drawn as pins or listed.
+  const [osm] = await sql<{ n: number }[]>`
+    select count(*)::int as n from public.venues where source = 'osm'`;
+  const venues =
+    (osm?.n ?? 0) > 0
+      ? []
+      : model.map((c) => ({
+          name: `${c.main.name} (simulated)`,
+          category: c.main.category,
+          rank: 0,
+          geom: `SRID=4326;POINT(${c.lng} ${c.lat})`,
+          cell: c.cell,
+          source: 'seed',
+          source_id: c.cell,
+        }));
+  if (venues.length > 0) {
+    await sql`
+      insert into public.venues ${sql(venues, 'name', 'category', 'rank', 'geom', 'cell', 'source', 'source_id')}
+      on conflict (source, source_id) do update set name = excluded.name, category = excluded.category`;
+  }
 
   console.log(`Seeded ${model.length} cells, ${places.length} places, ${venues.length} venues.`);
 }
