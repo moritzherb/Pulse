@@ -5,7 +5,7 @@ import {
   ringAreaM2,
   ringCentroid,
   type Ring,
-} from '../geometry';
+} from '@shared/geometry.ts';
 
 // About 75 m x 111 m in Vienna.
 const box: Ring = [

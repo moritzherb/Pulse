@@ -14,7 +14,7 @@
     "format:check": "prettier --check .",
     "seed": "tsx --env-file-if-exists=.env scripts/seed-vienna.ts",
     "db:test": "bash supabase/tests/local/run.sh",
-    "functions:check": "cd supabase/functions && npx --yes deno@2 check ping/index.ts delete-me/index.ts",
+    "functions:check": "cd supabase/functions && npx --yes deno@2 check ping/index.ts delete-me/index.ts import-region/index.ts",
     "import:osm": "tsx --env-file-if-exists=.env scripts/import-osm.ts"
   },
   "dependencies": {
@@ -47,6 +47,7 @@
     "react-native-worklets": "0.13.0"
   },
   "devDependencies": {
+    "@photostructure/tz-lookup": "^11.7.0",
     "@react-native/jest-preset": "^0.88.0",
     "@types/geojson": "^7946.0.16",
     "@types/jest": "^30.0.0",
