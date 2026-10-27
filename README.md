@@ -159,6 +159,7 @@ npx supabase functions serve --env-file supabase/functions/.env
 | Level: against the place's usual peak (`refresh_usual_peaks()`, daily), else fixed    | `level_for_place()`, `_shared/levels.ts`             |
 | Changes are broadcast per region (`region:<res-5 cell>`), plus a heartbeat            | `realtime.send()`                                    |
 | App reads `live_venues` around the map and draws a heatmap on the places              | `useDensity.ts`, `src/components/map/HeatLayers.tsx` |
+| Zoomed out (below zoom 9): one busy area per region worldwide, tap to zoom in         | `live_overview()`, `useOverview.ts`                  |
 | Tapping a place, list row or pin opens the detail sheet: level, trend, usual, nearby  | `get_venue_detail()`, `src/components/detail/`       |
 | Every 15 min the k-anonymous counts are added to hourly history                       | `snapshot_hourly()`                                  |
 | Pings deleted after 20 min; anonymous users after 25 h; history after 12 months       | `purge_expired_pings()`, `purge_retention()`         |

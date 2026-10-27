@@ -29,6 +29,7 @@ Every fill-in is also marked `fill-in` in the source.
 
 | What                                                                                                             | Where                                    |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| World overview when zoomed out: busy areas per region, named after the nearest city; tapping one zooms in        | `useOverview`, `live_overview()`         |
 | Two-finger rotation; the compass face turns against the bearing, and a tap turns the map back to north           | `MapScreen`, `MapControls`               |
 | City search over about 4,000 cities worldwide, accent-insensitive, largest first                                 | `data/cities.ts`, `data/worldCities.ts`  |
 | "Getting ready" sharing state while a new region's places are imported                                           | `sharing.ts`, Settings, "What's sent"    |
