@@ -13,8 +13,10 @@ import { usePulse } from './usePulse';
  * glow keeps the same small size on the ground when zooming in (see
  * blobRadius), so it never spreads over a whole district.
  *
- * Names appear from street zoom (busy places first), the selected place gets
- * a ring, and the heatmap breathes slowly while anything is Busy or Packed.
+ * Names appear from street zoom (busy places first) and the selected place
+ * gets a ring. The glows breathe: they slowly swell a little and settle
+ * again. JS only flips between the two states; MapLibre eases between them
+ * natively (paint transitions), so the motion stays smooth on the device.
  */
 
 /** Level as heatmap weight: one place on its own maps to its level's colour on the ramp. */
@@ -28,25 +30,26 @@ const LEVEL_WEIGHT: Record<LivePlace['level'], number> = {
 /**
  * Glow radius in pixels: about 170 m on the ground (the visible glow is about
  * half that), doubling with each zoom level, and never under 11 px so hot
- * spots still show at city zoom.
+ * spots still show at city zoom. `scale` lets the glow breathe.
  */
-const blobRadius = [
+const RADIUS_STOPS = [
+  [10, 8],
+  [12, 11],
+  [13, 14],
+  [14, 27],
+  [16, 106],
+  [18, 425],
+] as const;
+
+const blobRadius = (scale: number) => [
   'interpolate',
   ['exponential', 2],
   ['zoom'],
-  10,
-  8,
-  12,
-  11,
-  13,
-  14,
-  14,
-  27,
-  16,
-  106,
-  18,
-  425,
+  ...RADIUS_STOPS.flatMap(([zoom, px]) => [zoom, Math.round(px * scale * 10) / 10]),
 ];
+
+/** How much a glow grows at the top of a breath: a little, never a jump. */
+const SWELL = { radius: 1.14, intensity: 1.1 };
 
 export interface HeatLayersProps {
   places: readonly LivePlace[];
@@ -56,9 +59,10 @@ export interface HeatLayersProps {
 
 export function HeatLayers({ places, selectedId, onPlacePress }: HeatLayersProps) {
   const { colors, motion } = useTheme();
-  const anyBusy = places.some((p) => p.level === 'busy' || p.level === 'packed');
-  const { on: pulseOn } = usePulse(motion.placePulsePeriod, anyBusy);
+  // Stops in the background and under Reduce Motion (see usePulse).
+  const { on: swell } = usePulse(motion.placePulsePeriod, places.length > 0);
   const half = motion.placePulsePeriod / 2;
+  const radius = useMemo(() => blobRadius(swell ? SWELL.radius : 1), [swell]);
 
   const points = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
     () => ({
@@ -95,9 +99,10 @@ export function HeatLayers({ places, selectedId, onPlacePress }: HeatLayersProps
         type="heatmap"
         paint={{
           'heatmap-weight': ['get', 'weight'] as never,
-          'heatmap-intensity': pulseOn ? 1.12 : 1,
+          'heatmap-intensity': swell ? SWELL.intensity : 1,
           'heatmap-intensity-transition': { duration: half, delay: 0 },
-          'heatmap-radius': blobRadius as never,
+          'heatmap-radius': radius as never,
+          'heatmap-radius-transition': { duration: half, delay: 0 },
           'heatmap-opacity': 0.85,
           'heatmap-color': [
             'interpolate',
