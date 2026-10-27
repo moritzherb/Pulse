@@ -6,11 +6,14 @@ select plan(20);
 insert into auth.users (id, is_anonymous, created_at) values
   ('11111111-1111-1111-1111-111111111111', true, now() - interval '1 hour'),
   ('22222222-2222-2222-2222-222222222222', true, now() - interval '1 hour');
-insert into public.cells (cell, region, center) values
-  ('881e15b713fffff', '851e15b7fffffff', extensions.st_geogfromtext('SRID=4326;POINT(16.374698 48.210355)'));
-insert into public.pings (user_id, cell) values ('11111111-1111-1111-1111-111111111111', '881e15b713fffff');
-insert into public.live_cells (cell, region, devices, level) values ('881e15b713fffff', '851e15b7fffffff', 5, 1);
-insert into public.cell_hourly (cell, hour_start, devices_sum, samples) values ('881e15b713fffff', date_trunc('hour', now()), 5, 1);
+insert into public.venues (id, name, category, geom, cell, region, radius_m, source, source_id)
+overriding system value values
+  (1, 'Café Eins', 'food', extensions.st_geogfromtext('SRID=4326;POINT(16.3655 48.2104)'),
+   '881e15b713fffff', '851e15b7fffffff', 20, 'test', 'v1');
+insert into public.pings (user_id, venue_id) values ('11111111-1111-1111-1111-111111111111', 1);
+insert into public.live_venues (venue_id, region, name, category, lng, lat, devices, level)
+values (1, '851e15b7fffffff', 'Café Eins', 'food', 16.3655, 48.2104, 5, 1);
+insert into public.venue_hourly (venue_id, hour_start, devices_sum, samples) values (1, date_trunc('hour', now()), 5, 1);
 
 select ok(
   (select bool_and(c.relrowsecurity) from pg_class c join pg_namespace n on n.oid = c.relnamespace
@@ -21,12 +24,16 @@ select ok(
 -- ---------------------------------------------------------------- anon ---
 set local role anon;
 select throws_ok('select * from public.pings', '42501', null, 'anon cannot read raw pings');
-select throws_ok('select * from public.cells', '42501', null, 'anon cannot read cell metadata');
-select throws_ok('select * from public.cell_hourly', '42501', null, 'anon cannot read raw history');
-select is((select count(*)::int from public.live_cells), 1, 'anon can read k-anonymous live cells');
+select throws_ok('select * from public.venue_hourly', '42501', null, 'anon cannot read raw history');
+select is((select count(*)::int from public.live_venues), 1, 'anon can read k-anonymous live places');
 select throws_ok(
-  $$insert into public.live_cells (cell, region, devices, level) values ('881e15b711fffff', '851e15b7fffffff', 5, 1)$$,
-  '42501', null, 'anon cannot write live cells'
+  $$insert into public.live_venues (venue_id, region, name, category, lng, lat, devices, level)
+    values (1, '851e15b7fffffff', 'x', 'food', 0, 0, 5, 1)$$,
+  '42501', null, 'anon cannot write live places'
+);
+select is(
+  jsonb_array_length(public.venue_shapes('851e15b7fffffff') -> 'circles'), 1,
+  'anon can download place outlines (public data)'
 );
 select throws_ok(
   $$insert into public.consent_records (user_id, purpose, granted, policy_version)
@@ -34,10 +41,10 @@ select throws_ok(
   '42501', null, 'anon cannot record consent'
 );
 select throws_ok(
-  $$select public.record_ping('11111111-1111-1111-1111-111111111111', '881e15b713fffff', '851e15b7fffffff', 16.37, 48.21)$$,
+  $$select public.record_ping('11111111-1111-1111-1111-111111111111', 1)$$,
   '42501', null, 'anon cannot call record_ping'
 );
-select throws_ok('select public.refresh_live_cells()', '42501', null, 'anon cannot run aggregation');
+select throws_ok('select public.refresh_live_venues()', '42501', null, 'anon cannot run aggregation');
 select throws_ok('select public.delete_my_pings()', '42501', null, 'anon has no delete RPC');
 reset role;
 
@@ -46,7 +53,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 select throws_ok('select * from public.pings', '42501', null, 'signed-in users cannot read raw pings either');
 select lives_ok(
-  $$insert into public.consent_records (purpose, granted, policy_version) values ('location', true, '2026-10-27')$$,
+  $$insert into public.consent_records (purpose, granted, policy_version) values ('location', true, '2026-10-28')$$,
   'a user can record their own consent'
 );
 select throws_ok(
@@ -60,7 +67,7 @@ select throws_ok(
 );
 select is(public.my_outstanding_pings(), 1, 'my_outstanding_pings counts own pings');
 select throws_ok(
-  $$select public.record_ping('11111111-1111-1111-1111-111111111111', '881e15b713fffff', '851e15b7fffffff', 16.37, 48.21)$$,
+  $$select public.record_ping('11111111-1111-1111-1111-111111111111', 1)$$,
   '42501', null, 'clients cannot bypass the Edge Function'
 );
 reset role;

@@ -1,4 +1,10 @@
-import { K_ANONYMITY, LEVEL_MIN_DEVICES, levelForDevices, levelFromRank } from '@shared/levels.ts';
+import {
+  K_ANONYMITY,
+  LEVEL_MIN_DEVICES,
+  levelForDevices,
+  levelForPlace,
+  levelFromRank,
+} from '@shared/levels.ts';
 
 describe('levelForDevices', () => {
   it('maps the documented thresholds', () => {
@@ -21,5 +27,21 @@ describe('levelForDevices', () => {
     expect([1, 2, 3, 4].map(levelFromRank)).toEqual(['quiet', 'moderate', 'busy', 'packed']);
     expect(levelFromRank(0)).toBe('quiet');
     expect(levelFromRank(9)).toBe('packed');
+  });
+});
+
+describe('levelForPlace', () => {
+  it('judges a place against its own usual peak', () => {
+    expect(levelForPlace(30, 100)).toBe('quiet');
+    expect(levelForPlace(35, 100)).toBe('moderate');
+    expect(levelForPlace(60, 100)).toBe('busy');
+    expect(levelForPlace(85, 100)).toBe('packed');
+    // A small café is packed at a count a park would call quiet.
+    expect(levelForPlace(15, 15)).toBe('packed');
+  });
+
+  it('falls back to fixed thresholds without enough history', () => {
+    expect(levelForPlace(25, null)).toBe(levelForDevices(25));
+    expect(levelForPlace(25, 8)).toBe(levelForDevices(25));
   });
 });

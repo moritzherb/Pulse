@@ -1,24 +1,22 @@
 /**
- * POST /functions/v1/ping   { "cell": "881e15b713fffff" }
+ * POST /functions/v1/ping   { "venue": 48213 }
  *
- * The only way a phone contributes to the map. Accepts exactly one thing, an
- * H3 cell id at resolution 8. Any other field in the body is ignored and
- * never stored. The server sets the time.
+ * The only way a phone contributes to the map. Accepts exactly one thing: the
+ * id of the public place (café, museum, park) the phone found itself in, by
+ * checking its position against the place outlines on the phone. Any other
+ * field in the body is ignored and never stored. The server sets the time.
  *
  * Responses
  *   200 { accepted: true, expiresAt }      stored; deleted at expiresAt
- *   400 { error: "invalid_cell" }          not a resolution-8 H3 cell
+ *   400 { error: "invalid_venue" }         not a known place
  *   401 { error: "unauthorized" }          no / unknown anonymous session
  *   425 { accepted: false, reason: "too_new" }       identity too fresh
  *   429 { accepted: false, reason: "rate_limited" }  sent too recently
  *
- * Nothing about the caller or the cell is logged.
+ * Nothing about the caller or the place is logged.
  */
-import { cellToLatLng, cellToParent, getResolution, isValidCell } from 'npm:h3-js@4';
-
 import { json, numberEnv } from '../_shared/http.ts';
 import { adminClient, callerFrom } from '../_shared/supabase.ts';
-import { H3_RESOLUTION, REGION_RESOLUTION } from '../_shared/types.ts';
 
 /** Minimum gap between two accepted pings from one identity. */
 const MIN_INTERVAL_S = numberEnv('PING_MIN_INTERVAL_SECONDS', 60);
@@ -33,26 +31,19 @@ Deno.serve(async (req) => {
   const user = await callerFrom(req);
   if (!user) return json({ error: 'unauthorized' }, 401);
 
-  let cell: unknown;
+  let venue: unknown;
   try {
-    cell = ((await req.json()) as { cell?: unknown })?.cell;
+    venue = ((await req.json()) as { venue?: unknown })?.venue;
   } catch {
-    return json({ error: 'invalid_cell' }, 400);
+    return json({ error: 'invalid_venue' }, 400);
   }
-  if (typeof cell !== 'string' || !isValidCell(cell) || getResolution(cell) !== H3_RESOLUTION) {
-    return json({ error: 'invalid_cell' }, 400);
+  if (typeof venue !== 'number' || !Number.isSafeInteger(venue) || venue <= 0) {
+    return json({ error: 'invalid_venue' }, 400);
   }
-
-  const region = cellToParent(cell, REGION_RESOLUTION);
-  // Centre of the public hexagon, derived from the id. Used for place names.
-  const [lat, lng] = cellToLatLng(cell);
 
   const { data, error } = await adminClient().rpc('record_ping', {
     p_user: user.id,
-    p_cell: cell,
-    p_region: region,
-    p_center_lng: lng,
-    p_center_lat: lat,
+    p_venue: venue,
     p_min_interval: `${MIN_INTERVAL_S} seconds`,
     p_min_account_age: `${MIN_ACCOUNT_AGE_S} seconds`,
   });
@@ -69,6 +60,8 @@ Deno.serve(async (req) => {
       return json({ accepted: false, reason: 'rate_limited' }, 429);
     case 'too_new':
       return json({ accepted: false, reason: 'too_new' }, 425);
+    case 'unknown_venue':
+      return json({ error: 'invalid_venue' }, 400);
     default:
       return json({ error: 'unauthorized' }, 401);
   }
