@@ -10,6 +10,8 @@ anonymous crowd-density heatmap.
 
 The visual source of truth is [`design/Pulse.dc.html`](design/Pulse.dc.html), a Claude
 Design prototype. The app re-implements it natively; it does not embed it.
+[`docs/design-notes.md`](docs/design-notes.md) lists what was taken as is, what was
+filled in where the design is silent, and the accessibility features.
 
 ## Status
 
@@ -19,7 +21,7 @@ Design prototype. The app re-implements it natively; it does not embed it.
 | 1b    | Navigation, screen shells, MapLibre map with mock Vienna heat               | done  |
 | 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime | done  |
 | 3     | Venues (OSM import) and the cell / venue detail sheet                       | done  |
-| 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility |       |
+| 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility | done  |
 | 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       |       |
 
 ## Setup from zero
