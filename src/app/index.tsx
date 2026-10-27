@@ -1,9 +1,14 @@
 import { Redirect } from 'expo-router';
 
+import { useConsent } from '@/features/consent/consent';
+import { MapScreen } from '@/features/map/MapScreen';
+
 /**
- * Phase 1a entry point: until the real screens land, development builds open
- * the design-token gallery.
+ * Entry point. Nobody reaches the map before making a choice on the consent
+ * screen, and the location prompt never appears behind it.
  */
 export default function Index() {
-  return <Redirect href="/dev/tokens" />;
+  const consent = useConsent();
+  if (!consent.decided) return <Redirect href="/onboarding" />;
+  return <MapScreen />;
 }
