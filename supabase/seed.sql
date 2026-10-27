@@ -1,0 +1,2 @@
+-- Intentionally empty. Simulated data comes from scripts/seed-vienna.ts, which
+-- marks everything it writes as synthetic (see the script header).
