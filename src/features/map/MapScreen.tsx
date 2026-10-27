@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { latLngToCell } from 'h3-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, useWindowDimensions, View, type NativeSyntheticEvent } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CellDetailSheet, DETAIL_SNAP } from '@/components/detail/CellDetailSheet';
@@ -53,6 +54,8 @@ export function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  // Under Reduce Motion the camera jumps instead of flying.
+  const reduceMotion = useReducedMotion();
   const consent = useConsent();
   const [center, setCenter] = useState({ lat: DEFAULT_CITY.lat, lng: DEFAULT_CITY.lng });
   const density = useDensity(center);
@@ -94,13 +97,13 @@ export function MapScreen() {
       cameraRef.current?.easeTo({
         center,
         zoom,
-        duration: theme.motion.camera,
+        duration: reduceMotion ? 0 : theme.motion.camera,
         easing: 'ease',
         // Keep the target visible above the detail sheet.
         padding: { bottom: overSheet ? screenHeight * DETAIL_SNAP : 0 },
       });
     },
-    [theme.motion.camera, screenHeight],
+    [theme.motion.camera, screenHeight, reduceMotion],
   );
 
   /**
@@ -221,10 +224,10 @@ export function MapScreen() {
         center,
         bearing: 0,
         pitch: 0,
-        duration: theme.motion.resetNorth,
+        duration: reduceMotion ? 0 : theme.motion.resetNorth,
       });
     }
-  }, [theme.motion.resetNorth]);
+  }, [theme.motion.resetNorth, reduceMotion]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.map.background }}>
@@ -280,7 +283,9 @@ export function MapScreen() {
         locating={locating}
       />
 
-      {inView.length === 0 && !selection && <EmptyState />}
+      {inView.length === 0 && !selection && (
+        <EmptyState variant={density.offline ? 'offline' : 'empty'} />
+      )}
 
       {!selection && (
         <BusiestSheet

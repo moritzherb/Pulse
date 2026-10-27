@@ -32,6 +32,8 @@ export interface DensitySnapshot {
   /** Time of the last aggregation run we know of (ms since epoch). */
   updatedAt: number | null;
   source: 'mock' | 'live';
+  /** The last attempt to load live data failed (network or server). */
+  offline: boolean;
 }
 
 interface Row {
@@ -75,11 +77,18 @@ function useMockCells(enabled: boolean): DensitySnapshot {
     cells: buildMockVienna(),
     updatedAt: Date.now(),
     source: 'mock',
+    offline: false,
   }));
   useEffect(() => {
     if (!enabled) return;
     const id = setInterval(
-      () => setSnapshot({ cells: buildMockVienna(), updatedAt: Date.now(), source: 'mock' }),
+      () =>
+        setSnapshot({
+          cells: buildMockVienna(),
+          updatedAt: Date.now(),
+          source: 'mock',
+          offline: false,
+        }),
       MOCK_REFRESH_MS,
     );
     return () => clearInterval(id);
@@ -90,6 +99,7 @@ function useMockCells(enabled: boolean): DensitySnapshot {
 function useLiveCells(regionKey: string | null): DensitySnapshot {
   const [byCell, setByCell] = useState<Map<string, LiveCell>>(new Map());
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [offline, setOffline] = useState(false);
   const regionsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -104,7 +114,9 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
         .from('live_cells')
         .select('cell, region, devices, level, trend, label, category, updated_at')
         .in('region', regions);
-      if (cancelled || error || !data) return;
+      if (cancelled) return;
+      setOffline(Boolean(error) || !data);
+      if (error || !data) return;
       const now = new Date().toISOString();
       const next = new Map<string, LiveCell>();
       let newest = 0;
@@ -164,5 +176,5 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
   }, [regionKey]);
 
   const cells = useMemo(() => [...byCell.values()].sort((a, b) => b.devices - a.devices), [byCell]);
-  return { cells, updatedAt, source: 'live' };
+  return { cells, updatedAt, source: 'live', offline };
 }
