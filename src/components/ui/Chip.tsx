@@ -1,5 +1,6 @@
 import { Pressable, type PressableProps } from 'react-native';
 
+import { haptic } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 
 import { LiveDot } from './LiveDot';
@@ -11,13 +12,17 @@ export interface ChipProps extends Omit<PressableProps, 'style' | 'children'> {
 }
 
 /** Category filter chip on the map: 44 tall pill, inverts when active. */
-export function Chip({ label, active = false, ...rest }: ChipProps) {
+export function Chip({ label, active = false, onPress, ...rest }: ChipProps) {
   const { colors, radius, size, shadows } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label} filter`}
       accessibilityState={{ selected: active }}
+      onPress={(e) => {
+        haptic.select();
+        onPress?.(e);
+      }}
       style={({ pressed }) => ({
         minHeight: size.control,
         paddingHorizontal: 15,

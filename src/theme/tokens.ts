@@ -253,6 +253,38 @@ export const darkColors: ColorTokens = {
   scrim: 'rgba(0,0,0,0.56)',
 };
 
+/**
+ * fill-in: stronger neutrals when the person turns on Increase Contrast (iOS)
+ * or High contrast text (Android). The design's muted greys (#8a8a8c on white,
+ * 3.5:1) are below WCAG AA for its 10 pt mono labels; these reach at least
+ * 4.5:1 while keeping the same hierarchy.
+ */
+export const lightHighContrast: ColorTokens = {
+  ...lightColors,
+  text: {
+    ...lightColors.text,
+    secondary: '#555557',
+    tertiary: '#5c5c5f',
+    muted: '#68686b',
+    faint: '#707073',
+  },
+  border: { ...lightColors.border, hairline: '#c9c9cc', strong: '#9e9ea1', divider: '#d6d6d9' },
+  control: { ...lightColors.control, trackOff: '#9e9ea1' },
+};
+
+export const darkHighContrast: ColorTokens = {
+  ...darkColors,
+  text: {
+    ...darkColors.text,
+    secondary: '#c4c4c8',
+    tertiary: '#b8b8bd',
+    muted: '#ababb0',
+    faint: '#939398',
+  },
+  border: { ...darkColors.border, hairline: '#3c3c42', strong: '#5c5c63', divider: '#34343a' },
+  control: { ...darkColors.control, trackOff: '#5c5c63' },
+};
+
 // ---------------------------------------------------------------- spacing ---
 
 /**

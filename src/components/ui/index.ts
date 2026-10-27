@@ -1,4 +1,5 @@
 export { Badge, StrikePill } from './Badge';
+export { Breathe } from './Breathe';
 export { Button, type ButtonProps, type ButtonVariant } from './Button';
 export { Card } from './Card';
 export { Chip, SharingPill } from './Chip';

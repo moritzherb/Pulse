@@ -1,13 +1,23 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Appearance, useColorScheme } from 'react-native';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { AccessibilityInfo, Appearance, Platform, useColorScheme } from 'react-native';
 
 import { readJson, StorageKeys, writeJson } from '@/lib/storage';
 
 import {
   darkColors,
+  darkHighContrast,
   darkShadows,
   layout,
   lightColors,
+  lightHighContrast,
   motion,
   radius,
   shadows,
@@ -44,10 +54,18 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function buildTheme(scheme: ColorScheme): Theme {
+function buildTheme(scheme: ColorScheme, highContrast: boolean): Theme {
+  const colors =
+    scheme === 'dark'
+      ? highContrast
+        ? darkHighContrast
+        : darkColors
+      : highContrast
+        ? lightHighContrast
+        : lightColors;
   return {
     scheme,
-    colors: scheme === 'dark' ? darkColors : lightColors,
+    colors,
     shadows: scheme === 'dark' ? darkShadows : shadows,
     type,
     space,
@@ -59,11 +77,34 @@ function buildTheme(scheme: ColorScheme): Theme {
   };
 }
 
-const lightTheme = buildTheme('light');
-const darkTheme = buildTheme('dark');
+const themes = {
+  light: buildTheme('light', false),
+  dark: buildTheme('dark', false),
+  lightHC: buildTheme('light', true),
+  darkHC: buildTheme('dark', true),
+};
+
+/** iOS "Increase Contrast" / Android "High contrast text". */
+function useHighContrast(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const ios = Platform.OS === 'ios';
+    const read = ios
+      ? AccessibilityInfo.isDarkerSystemColorsEnabled()
+      : AccessibilityInfo.isHighTextContrastEnabled();
+    read.then(setOn).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener(
+      ios ? 'darkerSystemColorsChanged' : 'highTextContrastChanged',
+      setOn,
+    );
+    return () => sub.remove();
+  }, []);
+  return on;
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const system = useColorScheme();
+  const highContrast = useHighContrast();
   const [preference, setPreferenceState] = useState<ThemePreference>(() => {
     const stored = readJson<ThemePreference>(StorageKeys.themePreference, 'system');
     // Apply a stored override before first paint so there is no flash.
@@ -81,10 +122,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const scheme: ColorScheme =
     preference === 'system' ? (system === 'dark' ? 'dark' : 'light') : preference;
 
-  const value = useMemo(
-    () => ({ theme: scheme === 'dark' ? darkTheme : lightTheme, preference, setPreference }),
-    [scheme, preference, setPreference],
-  );
+  const value = useMemo(() => {
+    const key = `${scheme}${highContrast ? 'HC' : ''}` as keyof typeof themes;
+    return { theme: themes[key], preference, setPreference };
+  }, [scheme, highContrast, preference, setPreference]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

@@ -5,6 +5,7 @@ import Svg, { Rect } from 'react-native-svg';
 import { Text } from '@/components/ui';
 import { dayBars, daySummary, WEEKDAYS } from '@/features/detail/usual';
 import type { UsualPoint } from '@/features/detail/types';
+import { haptic } from '@/lib/haptics';
 import { useTheme } from '@/theme';
 import { K_ANONYMITY } from '@shared/levels.ts';
 
@@ -52,7 +53,10 @@ export function UsualChart({ hours, initialDay, currentHour, today }: UsualChart
               accessibilityLabel={name}
               accessibilityState={{ selected: active }}
               hitSlop={6}
-              onPress={() => setDay(d)}
+              onPress={() => {
+                haptic.select();
+                setDay(d);
+              }}
               style={{
                 paddingVertical: 4,
                 borderBottomWidth: 1.5,

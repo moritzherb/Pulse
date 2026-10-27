@@ -3,7 +3,7 @@ import BottomSheet, {
   type BottomSheetBackgroundProps,
 } from '@gorhom/bottom-sheet';
 import { useEffect, useMemo, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { AccessibilityInfo, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, LevelSwatch, SectionLabel, Text, TrendGlyph, trendLabel } from '@/components/ui';
@@ -84,6 +84,16 @@ function Content({
   ]
     .filter(Boolean)
     .join(' · ');
+
+  // Tell VoiceOver / TalkBack users what opened; the map itself is not navigable.
+  const spoken = live
+    ? `${title}. ${heatLevels[live.level].label} right now.`
+    : `${title}. Not enough data right now.`;
+  useEffect(() => {
+    AccessibilityInfo.announceForAccessibility(`Details: ${spoken}`);
+    // Announce once per opened place, not on every live update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection.cell, selection.venue?.name]);
 
   const usualNow = detail ? (dayBars(detail.usual.hours, today)[hour] ?? 0) : 0;
   const compare = nowVsUsual(live?.devices ?? null, usualNow);
