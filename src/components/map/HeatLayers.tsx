@@ -1,21 +1,20 @@
 import { GeoJSONSource, Layer } from '@maplibre/maplibre-react-native';
 import { useMemo } from 'react';
 
-import { heatLevels, heatmapDensityStops, useTheme } from '@/theme';
+import { heatmapDensityStops, useTheme } from '@/theme';
 import type { LivePlace } from '@shared/types.ts';
 
 import { usePulse } from './usePulse';
 
 /**
- * Crowd layers. The heat sits on the places themselves: each live place adds
- * a soft blob whose strength follows its level, so a packed café glows red
- * and the street outside stays clear. From street zoom the blob keeps the
- * same size on the ground (see blobRadius), so the city view
- * shows the hot spots and the street view shows which place is busy.
+ * Crowd layers: the design's soft heatmap, restricted to places. Each live
+ * place adds a small glow whose strength follows its level; places close
+ * together blend, like any heatmap, and everything else stays clear. The
+ * glow keeps the same small size on the ground when zooming in (see
+ * blobRadius), so it never spreads over a whole district.
  *
- * From street zoom, each place also gets a dot in its level colour and its
- * name (busy places first), and the selected place a ring. The heatmap
- * breathes slowly while anything is Busy or Packed.
+ * Names appear from street zoom (busy places first), the selected place gets
+ * a ring, and the heatmap breathes slowly while anything is Busy or Packed.
  */
 
 /** Level as heatmap weight: one place on its own maps to its level's colour on the ramp. */
@@ -26,37 +25,27 @@ const LEVEL_WEIGHT: Record<LivePlace['level'], number> = {
   packed: 1,
 };
 
-const levelColor = [
-  'match',
-  ['get', 'level'],
-  'packed',
-  heatLevels.packed.color,
-  'busy',
-  heatLevels.busy.color,
-  'moderate',
-  heatLevels.moderate.color,
-  heatLevels.quiet.color,
-] as const;
-
 /**
- * Blob radius in pixels: about 90 m on the ground from street zoom on (the
- * visible glow is about half that), and never smaller than a few pixels so
- * hot spots still show at city zoom.
+ * Glow radius in pixels: about 170 m on the ground (the visible glow is about
+ * half that), doubling with each zoom level, and never under 11 px so hot
+ * spots still show at city zoom.
  */
 const blobRadius = [
   'interpolate',
   ['exponential', 2],
   ['zoom'],
   10,
-  6,
+  8,
   12,
-  9,
+  11,
+  13,
   14,
+  14,
+  27,
   16,
-  16,
-  56,
+  106,
   18,
-  225,
+  425,
 ];
 
 export interface HeatLayersProps {
@@ -118,18 +107,14 @@ export function HeatLayers({ places, selectedId, onPlacePress }: HeatLayersProps
           ] as never,
         }}
       />
+      {/* Invisible tap target: heatmap layers cannot be tapped. */}
       <Layer
-        id="place-dot"
+        id="place-hit"
         type="circle"
-        minzoom={13}
         paint={{
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 2.5, 17, 5] as never,
-          'circle-color': levelColor as never,
-          'circle-color-transition': { duration: motion.levelChange, delay: 0 },
-          'circle-stroke-color': colors.map.placeStroke,
-          'circle-stroke-width': 1.5,
-          'circle-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 1] as never,
-          'circle-stroke-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0, 13.6, 1] as never,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 8, 16, 18] as never,
+          'circle-color': colors.text.primary,
+          'circle-opacity': 0.01,
         }}
       />
       <Layer

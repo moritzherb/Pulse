@@ -17,13 +17,13 @@ Every fill-in is also marked `fill-in` in the source.
 
 ## Decisions that change the design
 
-| Change                                                              | Why                                                                                        |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Consent lists one purpose (location); analytics and updates removed | The app does neither; the store privacy labels must match the code                         |
-| Consent screen drops the "Each one separate" toggle block           | With one purpose it repeated the two buttons; the switch remains in Settings               |
-| "The place you are at" instead of "a 460 m area and a category"     | Crowds are counted per place; the category comes from OpenStreetMap, never the phone       |
-| Basemap: OpenFreeMap Positron (vector) instead of CARTO raster      | Same cartography; CARTO needs a paid licence for commercial apps                           |
-| The heatmap sits on places at every zoom, no hexagons               | Areas were too coarse to say whether a café is busy; a dot and name per place from zoom 13 |
+| Change                                                              | Why                                                                                             |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Consent lists one purpose (location); analytics and updates removed | The app does neither; the store privacy labels must match the code                              |
+| Consent screen drops the "Each one separate" toggle block           | With one purpose it repeated the two buttons; the switch remains in Settings                    |
+| "The place you are at" instead of "a 460 m area and a category"     | Crowds are counted per place; the category comes from OpenStreetMap, never the phone            |
+| Basemap: OpenFreeMap Positron (vector) instead of CARTO raster      | Same cartography; CARTO needs a paid licence for commercial apps                                |
+| The heatmap sits on places at every zoom, no hexagons               | Areas were too coarse to say whether a café is busy; a small glow per place, names from zoom 14 |
 
 ## Fill-ins (not in the design, built in its style)
 
@@ -35,7 +35,7 @@ Every fill-in is also marked `fill-in` in the source.
 | Level word on every "Busiest now" row; tappable legend that reveals the pattern key                              | `BusiestSheet`                           |
 | Levels relative to each place's usual peak, so a full café and a full park both read Packed                      | `level_for_place()`, `_shared/levels.ts` |
 | The heatmap breathes while anything is Busy or Packed                                                            | `HeatLayers`                             |
-| Place dots fade to their new colour when the level changes; list rows glide to their new rank                    | `HeatLayers`, `BusiestSheet`             |
+| List rows glide to their new rank when levels change                                                             | `BusiestSheet`                           |
 | Place detail sheet, "usually busy at" chart, now-vs-usual line, busy places nearby                               | `components/detail/`                     |
 | Venue pins (hollow rings) with names from zoom 15.5                                                              | `VenueLayer`                             |
 | Offline state ("Can't reach Pulse right now")                                                                    | `EmptyState`                             |
