@@ -223,6 +223,10 @@ export function MapScreen() {
         style={{ flex: 1 }}
         mapStyle={mapStyle}
         logo={false}
+        // Twist with two fingers to rotate, like Google Maps. MapLibre's own
+        // compass is off: MapControls draws the design's compass, whose needle
+        // follows the bearing and which turns the map back to north on tap.
+        touchRotate
         compass={false}
         attributionPosition={{
           bottom: sheetHeight + insets.bottom + 4,

@@ -14,7 +14,11 @@ export interface MapControlsProps {
   locating: boolean;
 }
 
-/** Compass and locate-me, stacked on the right edge (design: right 14, top 168). */
+/**
+ * Compass and locate-me, stacked on the right edge (design: right 14, top 168).
+ * The compass face turns against the map's bearing, so its needle always
+ * points north while the map is rotated; tapping it turns the map back.
+ */
 export function MapControls({
   bearing,
   onResetNorth,
