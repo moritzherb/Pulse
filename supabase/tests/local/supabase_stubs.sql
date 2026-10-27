@@ -35,6 +35,14 @@ create table if not exists auth.users (
   raw_app_meta_data  jsonb not null default '{}'::jsonb
 );
 
+-- Auth's audit log (Supabase writes one row per sign-in, including the IP).
+create table if not exists auth.audit_log_entries (
+  id          uuid primary key default gen_random_uuid(),
+  payload     json,
+  ip_address  varchar(64) not null default '',
+  created_at  timestamptz default now()
+);
+
 -- Same contract as Supabase: the subject of the current request's JWT.
 create or replace function auth.uid() returns uuid
 language sql stable as $$
