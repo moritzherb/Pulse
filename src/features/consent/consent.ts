@@ -2,14 +2,14 @@ import { createStore } from '@/lib/createStore';
 import { readJson, StorageKeys, writeJson } from '@/lib/storage';
 
 /**
- * Consent state. One purpose only: sharing the phone's coarse area. Browsing
+ * Consent state. One purpose only: sharing the place the phone is at. Browsing
  * the map needs no consent at all.
  *
  * Stored with the policy version it was given under. When the version
  * changes (EXPO_PUBLIC_POLICY_VERSION), the consent screen is shown again.
  */
 
-export const POLICY_VERSION = process.env.EXPO_PUBLIC_POLICY_VERSION ?? '2026-10-27';
+export const POLICY_VERSION = process.env.EXPO_PUBLIC_POLICY_VERSION ?? '2026-10-28';
 
 export interface ConsentState {
   /** The policy version this decision was made under. */

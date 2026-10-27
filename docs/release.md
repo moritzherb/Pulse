@@ -56,7 +56,7 @@ npm i -g eas-cli && eas login
 eas init                                         # once, links the Expo project
 eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_URL --value https://<prod-ref>.supabase.co --visibility plaintext
 eas env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <prod anon key> --visibility plaintext
-eas env:create --environment production --name EXPO_PUBLIC_POLICY_VERSION --value 2026-10-27 --visibility plaintext
+eas env:create --environment production --name EXPO_PUBLIC_POLICY_VERSION --value 2026-10-28 --visibility plaintext
 ```
 
 The anon / publishable key is public by design (it ships in the app; RLS protects the

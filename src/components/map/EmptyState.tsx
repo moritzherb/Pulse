@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { FloatingCard, Text } from '@/components/ui';
 
 const COPY = {
-  empty: ['Not enough people here yet', 'Cells appear at five people or more.'],
+  empty: ['Not enough people here yet', 'Places appear at five people or more.'],
   // fill-in: the design has no offline state. Same card, honest wording.
   offline: [
     'Can’t reach Pulse right now',
@@ -12,7 +12,7 @@ const COPY = {
 } as const;
 
 /**
- * Shown when no cell in view clears the k-anonymity threshold, or when live
+ * Shown when no place in view clears the k-anonymity threshold, or when live
  * data cannot be loaded. Honest: no placeholder heat is ever invented.
  */
 export function EmptyState({ variant = 'empty' }: { variant?: keyof typeof COPY }) {

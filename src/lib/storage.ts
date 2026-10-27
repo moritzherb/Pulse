@@ -14,6 +14,7 @@ export const StorageKeys = {
   themePreference: 'pulse.theme.v1',
   consent: 'pulse.consent.v1',
   privateZones: 'pulse.private_zones.v1',
+  placeShapes: 'pulse.place_shapes.v1',
 } as const;
 
 export type StorageKey = (typeof StorageKeys)[keyof typeof StorageKeys];

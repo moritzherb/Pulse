@@ -8,17 +8,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Card, LevelSwatch, SectionLabel, Text, TrendGlyph, trendLabel } from '@/components/ui';
 import type { Selection } from '@/features/detail/types';
-import { useCellDetail } from '@/features/detail/useCellDetail';
+import { usePlaceDetail } from '@/features/detail/usePlaceDetail';
 import { dayBars, isoDay, nowVsUsual, WEEKDAYS_LONG } from '@/features/detail/usual';
 import { heatLevels, useTheme } from '@/theme';
-import type { LiveCell } from '@shared/types.ts';
+import type { LivePlace } from '@shared/types.ts';
 
 import { UsualChart } from './UsualChart';
 
-export interface CellDetailSheetProps {
+export interface PlaceDetailSheetProps {
   selection: Selection | null;
-  /** Current state of the selected cell from the live map data (null under k). */
-  live: LiveCell | null;
+  /** Current state of the selected place from the live map data (null under k). */
+  live: LivePlace | null;
   updatedLabel: string;
   onClose: () => void;
 }
@@ -27,11 +27,16 @@ export interface CellDetailSheetProps {
 export const DETAIL_SNAP = 0.5;
 
 /**
- * Cell / venue detail. fill-in: the design has no detail sheet. It follows
+ * Place detail. fill-in: the design has no detail sheet. It follows
  * the design's floating-card language: 14 pt margins and radius, the sheet
  * shadow, mono section labels and meta lines, the 10 pt swatch scaled up.
  */
-export function CellDetailSheet({ selection, live, updatedLabel, onClose }: CellDetailSheetProps) {
+export function PlaceDetailSheet({
+  selection,
+  live,
+  updatedLabel,
+  onClose,
+}: PlaceDetailSheetProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const ref = useRef<BottomSheet>(null);
@@ -68,20 +73,17 @@ function Content({
   live,
   updatedLabel,
   onClose,
-}: Required<Omit<CellDetailSheetProps, 'selection'>> & { selection: Selection }) {
+}: Required<Omit<PlaceDetailSheetProps, 'selection'>> & { selection: Selection }) {
   const { colors } = useTheme();
-  const state = useCellDetail(selection.cell);
+  const state = usePlaceDetail(selection.id);
   const detail = state.status === 'ready' ? state.detail : null;
   const now = new Date();
   const today = isoDay(now);
   const hour = now.getHours();
 
-  const area = live?.label ?? detail?.label ?? null;
-  const title = selection.venue?.name ?? area ?? 'This area';
-  const meta = [
-    selection.venue ? (selection.venue.kind ?? selection.venue.category) : (live?.category ?? null),
-    selection.venue && area ? `in ${area}` : '~460 m area',
-  ]
+  const title = selection.name;
+  const area = detail?.place.area ?? null;
+  const meta = [selection.kind ?? selection.category, area ? `in ${area}` : null]
     .filter(Boolean)
     .join(' · ');
 
@@ -93,7 +95,7 @@ function Content({
     AccessibilityInfo.announceForAccessibility(`Details: ${spoken}`);
     // Announce once per opened place, not on every live update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection.cell, selection.venue?.name]);
+  }, [selection.id]);
 
   const usualNow = detail ? (dayBars(detail.usual.hours, today)[hour] ?? 0) : 0;
   const compare = nowVsUsual(live?.devices ?? null, usualNow);
@@ -145,7 +147,8 @@ function Content({
         <Card>
           <Text variant="rowTitle">Not enough data right now</Text>
           <Text variant="caption" color="tertiary" style={{ paddingTop: 3 }}>
-            Fewer than five people shared from here in the last 15 minutes, so nothing is shown.
+            Fewer than five people shared from this place in the last 15 minutes, so nothing is
+            shown.
           </Text>
         </Card>
       )}
@@ -183,30 +186,30 @@ function Content({
           </Card>
         ))}
 
-      {detail && detail.venues.length > 0 && (
+      {detail && detail.nearby.length > 0 && (
         <>
-          <SectionLabel>In this area</SectionLabel>
+          <SectionLabel>Nearby right now</SectionLabel>
           <View>
-            {detail.venues.map((v, i) => (
+            {detail.nearby.map((n, i) => (
               <View
-                key={v.id}
+                key={n.id}
                 accessible
-                accessibilityLabel={`${v.name}, ${v.kind ?? v.category}`}
+                accessibilityLabel={`${n.name}, ${heatLevels[n.level].label}, about ${n.devices} people`}
                 style={{
                   flexDirection: 'row',
-                  alignItems: 'baseline',
-                  justifyContent: 'space-between',
-                  gap: 12,
+                  alignItems: 'center',
+                  gap: 10,
                   paddingVertical: 10,
                   borderTopWidth: i === 0 ? 0 : 1,
                   borderTopColor: colors.border.divider,
                 }}
               >
+                <LevelSwatch level={n.level} />
                 <Text variant="callout" numberOfLines={1} style={{ flex: 1 }}>
-                  {v.name}
+                  {n.name}
                 </Text>
                 <Text variant="monoSub" color="muted">
-                  {v.kind ?? v.category}
+                  {heatLevels[n.level].label}
                 </Text>
               </View>
             ))}
@@ -215,8 +218,9 @@ function Content({
       )}
 
       <Text variant="monoFootnote" color="muted" style={{ paddingTop: 22 }}>
-        Different phones in the last 15 min, rounded to 5. Areas under five are never shown. Venues
-        © OpenStreetMap contributors.
+        Different phones at this place in the last 15 min, rounded to 5. Places under five are never
+        shown. Levels compare with how busy this place usually gets at its peak. Places ©
+        OpenStreetMap contributors.
       </Text>
     </BottomSheetScrollView>
   );

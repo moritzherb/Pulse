@@ -7,10 +7,10 @@ import type { HeatLevel } from './levels.ts';
 
 export type { HeatLevel };
 
-/** H3 resolution of every reported cell: ~460 m edge, ~0.74 km² area. */
+/** H3 resolution used to centre the map on the phone's area (~460 m). Never sent. */
 export const H3_RESOLUTION = 8;
 
-/** Parent resolution used to group cells into Realtime topics (~8.5 km edge). */
+/** Parent resolution grouping places into regions for downloads and Realtime topics (~250 km²). */
 export const REGION_RESOLUTION = 5;
 
 /** Venue categories, derived server-side from OpenStreetMap. Never sent by a phone. */
@@ -21,21 +21,24 @@ export const CATEGORIES: readonly Category[] = ['nightlife', 'food', 'sights', '
 export type Trend = -1 | 0 | 1;
 
 /**
- * One k-anonymous cell as clients see it. Only cells with at least
+ * One k-anonymous place as clients see it. Only places with at least
  * K_ANONYMITY distinct devices in the window ever exist in this shape.
+ * Name, category, kind and position are public OpenStreetMap data.
  */
-export interface LiveCell {
-  /** H3 index at H3_RESOLUTION. */
-  cell: string;
+export interface LivePlace {
+  id: number;
+  name: string;
+  category: Category;
+  /** The OSM type in plain words ("café", "museum"). */
+  kind: string | null;
+  lng: number;
+  lat: number;
   /** Distinct devices in the window, rounded to the nearest 5. */
   devices: number;
+  /** Against the place's usual peak once it has history. */
   level: HeatLevel;
-  /** Compared with the previous aggregation run. */
+  /** Newer vs older half of the window. */
   trend: Trend;
-  /** Dominant venue category in the cell, if any venues are known. */
-  category: Category | null;
-  /** Human label: nearest known place name. Null when none is known. */
-  label: string | null;
   /** ISO timestamp of the aggregation run that produced this row. */
   updatedAt: string;
 }

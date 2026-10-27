@@ -10,11 +10,11 @@ import { useSharing } from '@/features/sharing/sharing';
 import { ago, useNow } from '@/lib/time';
 import { useTheme } from '@/theme';
 
-const NEVER_SENT = ['your address', 'your name', 'your phone', 'any history'];
+const NEVER_SENT = ['your position', 'your address', 'your name', 'your phone', 'any history'];
 
 /**
- * "What's sent" (design inspector). A bottom sheet over a scrim. Phase 2
- * fills "Your area" and "Last update" from the live ping pipeline.
+ * "What's sent" (design inspector). A bottom sheet over a scrim: the place
+ * the phone reports (the only thing it ever sends) and when it last did.
  */
 export default function Inspector() {
   const router = useRouter();
@@ -27,16 +27,22 @@ export default function Inspector() {
   const simulated = useSimulatedFeed();
   const now = useNow(5_000);
 
-  const sending = consent.location && sharing.status === 'sharing';
-  const summary =
-    sharing.status === 'paused'
+  const atPlace = consent.location ? sharing.myPlace : null;
+  const sending = consent.location && sharing.status === 'sharing' && atPlace !== null;
+  const summary = !consent.location
+    ? 'Nothing is being sent right now. You are only looking.'
+    : sharing.status === 'paused'
       ? 'You are in an area you marked private. Nothing is being sent from here.'
-      : sending
-        ? 'Your phone says “someone is in this 460 m area”, nothing else. It is forgotten after 20 minutes.'
-        : 'Nothing is being sent right now. You are only looking.';
+      : sharing.status === 'arriving' && atPlace
+        ? `You are at ${atPlace.name}. It counts once you have stayed 2 minutes.`
+        : sending && atPlace
+          ? `Your phone says “someone is at ${atPlace.name}”, nothing else. It is forgotten after 20 minutes.`
+          : sharing.status === 'imprecise'
+            ? 'Your location is too rough to tell which place you are at, so nothing is sent.'
+            : 'You are not at a place on the map, so nothing is being sent.';
 
   const rows = [
-    { k: 'Your area', v: sending && sharing.myCell ? 'a 460 m area' : 'not shared' },
+    { k: 'Your place', v: sending && atPlace ? atPlace.name : 'not shared' },
     { k: 'Last update', v: ago(sharing.lastSentAt, now) },
     { k: 'Kept for', v: '20 minutes' },
   ];

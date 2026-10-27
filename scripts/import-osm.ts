@@ -8,18 +8,26 @@
  *   --endpoint <url>    Overpass endpoint (default https://overpass-api.de/api/interpreter)
  *   --yes               Required when DATABASE_URL is not a local database
  *
- * Upserts venues and places with source = 'osm', then removes OSM rows that
- * were not in this import (closed or renamed venues). Safe to run repeatedly,
- * for example once a week. Data © OpenStreetMap contributors, ODbL.
+ * Upserts venues (with their outlines) and places with source = 'osm', then
+ * removes OSM rows that were not in this import (closed or renamed venues).
+ * Venue ids stay the same across imports, so phones' cached outlines and the
+ * history of each place stay valid. Safe to run repeatedly, for example once
+ * a week. Data © OpenStreetMap contributors, ODbL.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 
 import { latLngToCell } from 'h3-js';
 import postgres from 'postgres';
 
-import { H3_RESOLUTION } from '../supabase/functions/_shared/types.ts';
+import { H3_RESOLUTION, REGION_RESOLUTION } from '../supabase/functions/_shared/types.ts';
 
-import { overpassQuery, parseOverpass, VIENNA_BBOX, type OsmElement } from './osm/classify.ts';
+import {
+  overpassQuery,
+  parseOverpass,
+  shapeWkt,
+  VIENNA_BBOX,
+  type OsmElement,
+} from './osm/classify.ts';
 
 const argv = process.argv.slice(2);
 const arg = (name: string) => {
@@ -41,7 +49,7 @@ if (!isLocal && !argv.includes('--yes')) {
 
 async function download(): Promise<{ elements?: OsmElement[] }> {
   const endpoint = arg('endpoint') ?? 'https://overpass-api.de/api/interpreter';
-  console.log(`Querying ${endpoint} (this can take a minute)...`);
+  console.log(`Querying ${endpoint} with outlines (this can take a few minutes)...`);
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -62,31 +70,39 @@ async function main() {
   if (save && !from) writeFileSync(save, JSON.stringify(json));
 
   const { venues, places } = parseOverpass(json);
-  console.log(`Parsed ${venues.length} venues and ${places.length} places.`);
+  const outlines = venues.filter((v) => v.shape.type === 'polygon').length;
+  console.log(
+    `Parsed ${venues.length} venues (${outlines} with outlines, the rest as circles) and ${places.length} places.`,
+  );
   if (venues.length === 0) throw new Error('No venues parsed; refusing to wipe existing data.');
 
   const sql = postgres(url!, { prepare: false, onnotice: () => {}, max: 2 });
   try {
     const startedAt = new Date();
     await sql.begin(async (tx) => {
-      for (let i = 0; i < venues.length; i += 2000) {
-        const rows = venues.slice(i, i + 2000).map((v) => ({
+      for (let i = 0; i < venues.length; i += 1000) {
+        const rows = venues.slice(i, i + 1000).map((v) => ({
           name: v.name,
           category: v.category,
           kind: v.kind,
           rank: v.rank,
           geom: `SRID=4326;POINT(${v.lng} ${v.lat})`,
           cell: latLngToCell(v.lat, v.lng, H3_RESOLUTION),
+          region: latLngToCell(v.lat, v.lng, REGION_RESOLUTION),
+          shape: shapeWkt(v.shape),
+          radius_m: v.shape.type === 'circle' ? v.shape.radiusM : null,
+          area_m2: Math.round(v.areaM2),
           source: 'osm',
           source_id: v.sourceId,
           imported_at: startedAt,
         }));
         await tx`
-          insert into public.venues ${tx(rows, 'name', 'category', 'kind', 'rank', 'geom', 'cell', 'source', 'source_id', 'imported_at')}
+          insert into public.venues ${tx(rows, 'name', 'category', 'kind', 'rank', 'geom', 'cell', 'region', 'shape', 'radius_m', 'area_m2', 'source', 'source_id', 'imported_at')}
           on conflict (source, source_id) do update set
             name = excluded.name, category = excluded.category, kind = excluded.kind,
             rank = excluded.rank, geom = excluded.geom, cell = excluded.cell,
-            imported_at = excluded.imported_at`;
+            region = excluded.region, shape = excluded.shape, radius_m = excluded.radius_m,
+            area_m2 = excluded.area_m2, imported_at = excluded.imported_at`;
       }
       for (let i = 0; i < places.length; i += 2000) {
         const rows = places.slice(i, i + 2000).map((p) => ({
@@ -107,15 +123,15 @@ async function main() {
         delete from public.venues where source = 'osm' and imported_at < ${startedAt} returning id`;
       const gonePlaces = await tx`
         delete from public.places where source = 'osm' and imported_at < ${startedAt} returning id`;
-      // Real venues replace the simulated ones the seed script adds for categories.
+      // Real venues replace the stand-ins the seed script adds when none exist.
       const seed = await tx`delete from public.venues where source = 'seed' returning id`;
       console.log(
         `Upserted ${venues.length} venues and ${places.length} places; removed ` +
           `${goneVenues.length} closed venues, ${gonePlaces.length} old places, ${seed.length} simulated venues.`,
       );
     });
-    // Re-label live cells with the new names and categories right away.
-    await sql`select public.refresh_live_cells()`;
+    // Update names and categories of live places right away.
+    await sql`select public.refresh_live_venues()`;
   } finally {
     await sql.end({ timeout: 5 });
   }

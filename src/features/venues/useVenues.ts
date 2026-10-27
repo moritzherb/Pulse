@@ -12,8 +12,6 @@ export interface VenuePin {
   kind: string | null;
   lng: number;
   lat: number;
-  /** H3 cell of the venue; null for simulated pins (looked up on tap). */
-  cell: string | null;
 }
 
 /** Pins are drawn from this zoom on (street level). */
@@ -24,8 +22,9 @@ const LIMIT = 200;
 type Bounds = [west: number, south: number, east: number, north: number];
 
 /**
- * Venues in view at street zoom, most prominent first. Public OpenStreetMap
- * data via venues_in_bbox(). Simulated feed: the hotspots, as pins.
+ * Places in view at street zoom, most prominent first, so quiet places can
+ * be tapped too. Public OpenStreetMap data via venues_in_bbox(). Simulated
+ * feed: the simulated places, as pins.
  */
 export function useVenues(bounds: Bounds | null, zoom: number): VenuePin[] {
   const simulated = useSimulatedFeed();

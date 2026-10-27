@@ -57,7 +57,24 @@ const STATUS_COPY: Record<SharingStatus, { card: CardStatus; title: string; deta
   sharing: {
     card: 'sharing',
     title: 'Sharing on',
-    detail: 'A cell every 3 min while the app is open. Each one expires within 20 min.',
+    detail:
+      'The place you are at, every 3 min while the app is open. Each report expires within 20 min.',
+  },
+  arriving: {
+    card: 'sharing',
+    title: 'Sharing on',
+    detail: 'You count once you have stayed 2 minutes, so walking past a place does not.',
+  },
+  away: {
+    card: 'paused',
+    title: 'Sharing on, nothing to send',
+    detail: 'You are not at a place on the map right now, so nothing is sent.',
+  },
+  imprecise: {
+    card: 'paused',
+    title: 'Sharing on, location too rough',
+    detail:
+      'Pulse cannot tell which place you are at, so nothing is sent. Turn on Precise Location for Pulse in system settings.',
   },
   off: { card: 'off', title: 'Sharing off', detail: 'Nothing is sent. Full map access.' },
   paused: {
@@ -129,7 +146,7 @@ export default function Settings() {
   const copy = STATUS_COPY[status];
   const outstandingCopy =
     status === 'sharing' && sharing.outstanding > 0
-      ? `A cell every 3 min. ${sharing.outstanding} row(s), all expiring within 20 min.`
+      ? `${sharing.myPlace ? `At ${sharing.myPlace.name}. ` : ''}${sharing.outstanding} report(s) stored, all expiring within 20 min.`
       : copy.detail;
 
   const toggleSharing = async (on: boolean) => {
@@ -157,7 +174,7 @@ export default function Settings() {
       const fix = await acquireCoarseFix();
       addPrivateZone(fix.privateKey);
       const removed = await deleteSentPings().catch(() => 0);
-      if (consent.location) sendPing(fix); // re-evaluates: now paused
+      if (consent.location) sendPing(); // re-evaluates: now paused
       say(
         `This area is private now. Nothing will be sent from here${
           removed ? `, and ${removed} earlier report(s) were deleted` : ''
@@ -233,7 +250,7 @@ export default function Settings() {
           <Text variant="footnote" color="secondary">
             {status === 'paused'
               ? 'You are in a private area. Nothing is being sent.'
-              : 'Mark where you live or work. It covers about 250 m, small enough that a busy street nearby still counts. The list stays on your phone.'}
+              : 'Homes and offices are never places on the map, so they are never sent. For extra peace of mind, mark where you live or work: nothing is sent within about 250 m. The list stays on your phone.'}
           </Text>
           {zones.length > 0 && (
             <View style={{ gap: 6, paddingTop: 12 }}>

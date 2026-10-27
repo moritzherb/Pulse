@@ -15,10 +15,10 @@ import { useTheme } from '@/theme';
  * for location, and only after it is tapped.
  */
 const FACTS = [
-  { k: 'Sent', v: 'A 460 m area, while the app is open.' },
+  { k: 'Sent', v: 'The place you are at, like a café or a park, while the app is open.' },
   {
     k: 'Never sent',
-    v: 'Your address, name, or phone. Areas with fewer than five people are never shown, so your home can’t appear on its own.',
+    v: 'Your position, address, name, or phone. Homes are never places on the map, and a place shows only once five people are there.',
   },
   { k: 'Kept', v: '20 minutes.' },
   { k: 'Withdraw', v: 'One tap. Deletes what exists.' },

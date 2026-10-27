@@ -7,15 +7,16 @@ If the code changes, update this file, the privacy manifest in `app.config.ts`, 
 
 ## What leaves the phone
 
-| Data                                                                   | When                                                                              | Code                                                                                     |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| H3 cell id, resolution 8 (~460 m)                                      | Only while sharing, every 3 min while the app is open, and on entering a new cell | `src/features/sharing/sharing.ts` (`sendPing`), body is exactly `{ cell }` (unit-tested) |
-| Random anonymous user id (Supabase anonymous auth), as a session token | Only while sharing                                                                | `src/features/identity/identity.ts`                                                      |
-| Consent record (purpose, yes/no, policy version)                       | When an id is created and when sharing is switched off                            | `recordConsent()`                                                                        |
-| Map viewport / region ids, time zone                                   | While browsing (public data requests)                                             | `useDensity.ts`, `useVenues.ts`, `useCellDetail.ts`                                      |
-| IP address                                                             | Any network request (inherent)                                                    | Supabase, OpenFreeMap                                                                    |
+| Data                                                                   | When                                                                                 | Code                                                                                      |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Id of the public place the phone is at (OSM café, park, museum...)     | Only while sharing and at such a place for 2+ min, every 3 min while the app is open | `src/features/sharing/sharing.ts` (`sendPing`), body is exactly `{ venue }` (unit-tested) |
+| Region id (H3 resolution 5, ~250 km²) to download place outlines       | Only while sharing, about once a week                                                | `src/features/places/placeShapes.ts` (`venue_shapes`)                                     |
+| Random anonymous user id (Supabase anonymous auth), as a session token | Only while sharing                                                                   | `src/features/identity/identity.ts`                                                       |
+| Consent record (purpose, yes/no, policy version)                       | When an id is created and when sharing is switched off                               | `recordConsent()`                                                                         |
+| Map viewport / region ids, time zone                                   | While browsing (public data requests)                                                | `useDensity.ts`, `useVenues.ts`, `useCellDetail.ts`                                       |
+| IP address                                                             | Any network request (inherent)                                                       | Supabase, OpenFreeMap                                                                     |
 
-Never collected: precise location (converted on device in
+Never collected: the position itself (matched to a place on the device in
 `src/features/location/privacyBoundary.ts`, the only module allowed to read it),
 name, email, phone number, contacts, photos, device identifiers (IDFA / IDFV / Android
 ID), advertising data, analytics, crash data.
@@ -30,17 +31,19 @@ consent records, sessions and auth audit log entries 25 h; anonymous hourly aggr
 
 **Do you or your third-party partners collect data from this app?** Yes.
 
-| Data type                      | Collected | Linked to the user's identity | Used for tracking | Purposes          |
-| ------------------------------ | --------- | ----------------------------- | ----------------- | ----------------- |
-| Location → **Coarse Location** | Yes       | **No**                        | No                | App Functionality |
-| Identifiers → **User ID**      | Yes       | **No**                        | No                | App Functionality |
+| Data type                       | Collected | Linked to the user's identity | Used for tracking | Purposes          |
+| ------------------------------- | --------- | ----------------------------- | ----------------- | ----------------- |
+| Location → **Precise Location** | Yes       | **No**                        | No                | App Functionality |
+| Identifiers → **User ID**       | Yes       | **No**                        | No                | App Functionality |
 
 Everything else: **Not collected** (Contact Info, Health & Fitness, Financial Info,
-Precise Location, Sensitive Info, Contacts, User Content, Browsing History, Search
+Coarse Location, Sensitive Info, Contacts, User Content, Browsing History, Search
 History, Identifiers → Device ID, Purchases, Usage Data, Diagnostics, Other Data).
 
-Why "Coarse Location": Apple defines coarse location as lower resolution than three
-decimal places of latitude and longitude; an H3 resolution-8 cell (~460 m) is coarser.
+Why "Precise Location": the app sends no coordinates, but the id of a small place (a
+café is a few metres across) says where someone is more exactly than Apple's coarse
+threshold (three decimal places of latitude and longitude, about 100 m). Declaring it as
+precise is the honest reading.
 
 Why "User ID" and why "not linked": the random id is an assigned identifier, so it is
 declared. It is not linked to identity because it is created by the app for this
@@ -56,7 +59,7 @@ is never combined with any other data about the person, and is deleted within 25
 no IDFA.)
 
 **Privacy manifest** (`ios.privacyManifests` in `app.config.ts`, verified in a
-prebuild): collected types Coarse Location + User ID (not linked, no tracking, App
+prebuild): collected types Precise Location + User ID (not linked, no tracking, App
 Functionality); required-reason APIs UserDefaults CA92.1, FileTimestamp C617.1,
 SystemBootTime 35F9.1, DiskSpace E174.1.
 
@@ -78,22 +81,25 @@ Also by email to the privacy contact.
 
 | Category → type                               | Collected | Shared | Processed ephemerally | Required or optional                         | Purposes          |
 | --------------------------------------------- | --------- | ------ | --------------------- | -------------------------------------------- | ----------------- |
-| Location → **Approximate location**           | Yes       | No     | No (kept 20 min)      | **Optional** (the app works without sharing) | App functionality |
+| Location → **Precise location**               | Yes       | No     | No (kept 20 min)      | **Optional** (the app works without sharing) | App functionality |
 | Device or other IDs → **Device or other IDs** | Yes       | No     | No (kept ≤ 25 h)      | **Optional**                                 | App functionality |
 
-Not collected: Precise location, Personal info (name, email, user IDs tied to a person,
+Not collected: Approximate location, Personal info (name, email, user IDs tied to a person,
 address, phone, etc.), Financial info, Health and fitness, Messages, Photos and videos,
 Audio, Files and docs, Calendar, Contacts, App activity, Web browsing, App info and
 performance, Other.
 
 Notes for the form:
 
+- Precise, because a place id (a café) is far finer than Play's "approximate" (an area
+  of about 3 km² or more), even though no coordinates are sent.
 - "Shared" means transferred to a third party. Data sent to Supabase as our processor
   is not "sharing" under Play's definition.
 - The random id is declared under "Device or other IDs" (an identifier for an app
   installation), not "User IDs" (which Play defines as identifying a person).
 - **Permissions declared** (from `app.config.ts` / expo-location): `ACCESS_COARSE_LOCATION`,
-  `ACCESS_FINE_LOCATION` (foreground only; the position is reduced to ~460 m on device).
+  `ACCESS_FINE_LOCATION` (foreground only; the position is matched to a place on the device
+  and never sent).
   `ACCESS_BACKGROUND_LOCATION` is explicitly blocked, so no background-location
   declaration is needed.
 - **Ads:** No. **Target audience:** 16+ (see store-listing.md).

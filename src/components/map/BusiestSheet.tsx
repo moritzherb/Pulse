@@ -18,25 +18,26 @@ import {
   trendLabel,
 } from '@/components/ui';
 import { heatLevels, useTheme } from '@/theme';
-import type { LiveCell } from '@shared/types.ts';
+import { HEAT_LEVELS } from '@shared/levels.ts';
+import type { LivePlace } from '@shared/types.ts';
 
 export interface BusiestSheetProps {
-  /** Cells in view, busiest first. */
-  cells: readonly LiveCell[];
+  /** Live places in view. */
+  places: readonly LivePlace[];
   cityName: string;
   updatedLabel: string;
   open: boolean;
   onToggle: () => void;
-  onPickCell: (cell: LiveCell) => void;
+  onPickPlace: (place: LivePlace) => void;
   onLayoutHeight?: (h: number) => void;
 }
 
 const MAX_ROWS = 5;
 
 /**
- * The floating "Busiest now" card (design list variant A). Adjacent cells
- * that share a place name collapse into one row. Each row says the level in
- * words, so the list is the accessible version of the map.
+ * The floating "Busiest now" card (design list variant A). Places by level
+ * (busy for that place), then by count. Each row says the level in words,
+ * so the list is the accessible version of the map.
  */
 export function BusiestSheet(props: BusiestSheetProps) {
   const { colors, layout, zIndex } = useTheme();
@@ -51,15 +52,12 @@ export function BusiestSheet(props: BusiestSheetProps) {
         exiting: FadeOut.duration(180),
       };
 
-  const rows: LiveCell[] = [];
-  const seen = new Set<string>();
-  for (const c of props.cells) {
-    if (rows.length >= MAX_ROWS) break;
-    const key = c.label ?? c.cell;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push(c);
-  }
+  const rows = [...props.places]
+    .sort(
+      (a, b) =>
+        HEAT_LEVELS.indexOf(b.level) - HEAT_LEVELS.indexOf(a.level) || b.devices - a.devices,
+    )
+    .slice(0, MAX_ROWS);
 
   return (
     <Animated.View
@@ -121,11 +119,11 @@ export function BusiestSheet(props: BusiestSheetProps) {
               const level = heatLevels[c.level].label;
               return (
                 // Keyed by place, so a row glides to its new rank instead of re-mounting.
-                <Animated.View key={c.label ?? c.cell} {...rowMotion}>
+                <Animated.View key={c.id} {...rowMotion}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`${c.label ?? 'Unnamed area'}. ${level}, about ${c.devices} people, ${trendLabel(c.trend)}.`}
-                    onPress={() => props.onPickCell(c)}
+                    accessibilityLabel={`${c.name}. ${level}, about ${c.devices} people, ${trendLabel(c.trend)}.`}
+                    onPress={() => props.onPickPlace(c)}
                     style={({ pressed }) => ({
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -139,7 +137,7 @@ export function BusiestSheet(props: BusiestSheetProps) {
                     <LevelSwatch level={c.level} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text variant="callout" numberOfLines={1}>
-                        {c.label ?? 'Unnamed area'}
+                        {c.name}
                       </Text>
                       <Text
                         variant="monoSub"
@@ -147,7 +145,7 @@ export function BusiestSheet(props: BusiestSheetProps) {
                         numberOfLines={1}
                         style={{ paddingTop: 2 }}
                       >
-                        {c.category ? `${level} · ${c.category}` : level}
+                        {`${level} · ${c.kind ?? c.category}`}
                       </Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
