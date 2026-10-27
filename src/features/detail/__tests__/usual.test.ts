@@ -1,4 +1,11 @@
-import { dayBars, daySummary, isoDay, nowVsUsual, peakHour } from '@/features/detail/usual';
+import {
+  clockIn,
+  dayBars,
+  daySummary,
+  isoDay,
+  nowVsUsual,
+  peakHour,
+} from '@/features/detail/usual';
 
 const hours = [
   { d: 6, h: 12, v: 18.5 },
@@ -36,5 +43,22 @@ describe('usual-busyness helpers', () => {
   it('uses ISO weekdays', () => {
     expect(isoDay(new Date(2026, 9, 25))).toBe(7); // Sunday
     expect(isoDay(new Date(2026, 9, 26))).toBe(1); // Monday
+  });
+});
+
+describe('clockIn', () => {
+  // Tuesday 27 Oct 2026, 13:30 UTC.
+  const at = new Date('2026-10-27T13:30:00Z');
+
+  it('reads the clock in the place’s own time zone', () => {
+    expect(clockIn('Europe/Vienna', at)).toEqual({ day: 2, hour: 14 });
+    expect(clockIn('America/New_York', at)).toEqual({ day: 2, hour: 9 });
+    expect(clockIn('Asia/Tokyo', at)).toEqual({ day: 2, hour: 22 });
+    expect(clockIn('Pacific/Auckland', at)).toEqual({ day: 3, hour: 2 });
+  });
+
+  it('falls back to the phone’s clock', () => {
+    expect(clockIn(null, at)).toEqual({ day: isoDay(at), hour: at.getHours() });
+    expect(clockIn('Not/AZone', at)).toEqual({ day: isoDay(at), hour: at.getHours() });
   });
 });

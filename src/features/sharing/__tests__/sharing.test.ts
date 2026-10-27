@@ -41,7 +41,12 @@ const mockFix = {
 jest.mock('@/features/location/privacyBoundary', () => ({
   acquirePlaceFix: jest.fn(async () => mockFix),
 }));
-const mockLoad = jest.fn(async (_region: string) => ({ region: 'r', places: [] }));
+const mockLoad = jest.fn(
+  async (_region: string): Promise<{ region: string; places: never[] } | 'pending'> => ({
+    region: 'r',
+    places: [],
+  }),
+);
 jest.mock('@/features/places/placeShapes', () => ({
   cachedPlaceIndex: () => null,
   loadPlaceIndex: (r: string) => mockLoad(r),
@@ -109,6 +114,14 @@ it('downloads the region outlines first when they are missing', async () => {
   mockFix.indexReady = false;
   await sendPing();
   expect(mockLoad).toHaveBeenCalledWith('851e15b7fffffff');
+});
+
+it('sends nothing while the region’s places are still being imported', async () => {
+  mockFix.indexReady = false;
+  mockLoad.mockResolvedValueOnce('pending');
+  await sendPing();
+  expect(mockInvoke).not.toHaveBeenCalled();
+  expect(sharingStore.get()).toMatchObject({ status: 'preparing', myPlace: null });
 });
 
 it('does not send twice within a minute', async () => {

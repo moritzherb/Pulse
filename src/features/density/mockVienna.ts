@@ -43,6 +43,7 @@ export function mockPlaceDetail(id: number, now = new Date()): PlaceDetail | nul
       lng: v.lng,
       lat: v.lat,
       area: null,
+      tz: 'Europe/Vienna',
     },
     live: live
       ? { devices: live.devices, level: live.level, trend: live.trend, updatedAt: live.updatedAt }

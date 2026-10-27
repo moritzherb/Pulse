@@ -15,7 +15,8 @@
     "seed": "tsx --env-file-if-exists=.env scripts/seed-vienna.ts",
     "db:test": "bash supabase/tests/local/run.sh",
     "functions:check": "cd supabase/functions && npx --yes deno@2 check ping/index.ts delete-me/index.ts import-region/index.ts",
-    "import:osm": "tsx --env-file-if-exists=.env scripts/import-osm.ts"
+    "import:osm": "tsx --env-file-if-exists=.env scripts/import-osm.ts",
+    "cities": "tsx scripts/build-cities.ts"
   },
   "dependencies": {
     "@expo-google-fonts/arimo": "^0.4.3",
@@ -52,6 +53,7 @@
     "@types/geojson": "^7946.0.16",
     "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
+    "all-the-cities": "^3.1.0",
     "eslint": "^9.39.5",
     "eslint-config-expo": "~58.0.4",
     "eslint-config-prettier": "^10.1.8",

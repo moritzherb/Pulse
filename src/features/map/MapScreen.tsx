@@ -79,7 +79,8 @@ export function MapScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const sharing = consent.location && ['sharing', 'arriving', 'away'].includes(sharingState.status);
+  const sharing =
+    consent.location && ['sharing', 'arriving', 'away', 'preparing'].includes(sharingState.status);
 
   const say = useCallback(
     (message: string) => {
