@@ -40,7 +40,7 @@ export type DetailState =
  * the map's live data instead, so they keep updating while the sheet is open.
  */
 export function useCellDetail(cell: string | null): DetailState {
-  const simulated = useSimulatedFeed() || !supabase;
+  const simulated = useSimulatedFeed();
   const [state, setState] = useState<{ cell: string | null; value: DetailState }>({
     cell: null,
     value: { status: 'loading' },
@@ -62,7 +62,16 @@ export function useCellDetail(cell: string | null): DetailState {
       };
     }
 
-    supabase?.rpc('get_cell_detail', { p_cell: cell, p_tz: timeZone() }).then(({ data, error }) => {
+    if (!supabase) {
+      // No backend configured: say so instead of loading forever.
+      const t = setTimeout(() => done({ status: 'error' }), 0);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
+    }
+
+    supabase.rpc('get_cell_detail', { p_cell: cell, p_tz: timeZone() }).then(({ data, error }) => {
       const r = data as Remote;
       if (error || !r) return done({ status: 'error' });
       done({

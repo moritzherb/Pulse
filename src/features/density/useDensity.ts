@@ -25,7 +25,15 @@ const SAFETY_REFRESH_MS = 5 * 60_000;
 const MOCK_REFRESH_MS = 30_000;
 
 export const simulatedFeedStore = createStore<boolean>(__DEV__ && !isBackendConfigured);
-export const useSimulatedFeed = () => simulatedFeedStore.use();
+
+/**
+ * Whether to show simulated data. Never true in a release build: there, a
+ * missing backend shows the honest empty / offline state instead.
+ */
+export function useSimulatedFeed(): boolean {
+  const toggled = simulatedFeedStore.use();
+  return __DEV__ && (toggled || !isBackendConfigured);
+}
 
 export interface DensitySnapshot {
   cells: LiveCell[];
@@ -65,7 +73,7 @@ export function regionsAround(lat: number, lng: number): string[] {
 }
 
 export function useDensity(center: { lat: number; lng: number }): DensitySnapshot {
-  const simulated = useSimulatedFeed() || !supabase;
+  const simulated = useSimulatedFeed();
   const regionKey = regionsAround(center.lat, center.lng).join(',');
   const live = useLiveCells(simulated ? null : regionKey);
   const mock = useMockCells(simulated);
@@ -176,5 +184,6 @@ function useLiveCells(regionKey: string | null): DensitySnapshot {
   }, [regionKey]);
 
   const cells = useMemo(() => [...byCell.values()].sort((a, b) => b.devices - a.devices), [byCell]);
-  return { cells, updatedAt, source: 'live', offline };
+  // No backend configured (a misconfigured release build) reads as offline.
+  return { cells, updatedAt, source: 'live', offline: offline || !supabase };
 }
