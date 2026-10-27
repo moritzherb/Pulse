@@ -13,6 +13,14 @@ Design prototype. The app re-implements it natively; it does not embed it.
 [`docs/design-notes.md`](docs/design-notes.md) lists what was taken as is, what was
 filled in where the design is silent, and the accessibility features.
 
+| Document                                           | What it is                                                                  |
+| -------------------------------------------------- | --------------------------------------------------------------------------- |
+| [`docs/release.md`](docs/release.md)               | Release checklist: production backend, EAS, TestFlight, Google Play         |
+| [`docs/privacy-policy.md`](docs/privacy-policy.md) | Privacy policy draft (placeholders for the controller details)              |
+| [`docs/store-privacy.md`](docs/store-privacy.md)   | App Store privacy label and Google Play Data safety answers, mapped to code |
+| [`docs/store-listing.md`](docs/store-listing.md)   | Store copy, review notes, screenshot list                                   |
+| [`docs/design-notes.md`](docs/design-notes.md)     | Design decisions, fill-ins, accessibility                                   |
+
 ## Status
 
 | Phase | Scope                                                                       | State |
@@ -22,7 +30,7 @@ filled in where the design is silent, and the accessibility features.
 | 2     | Supabase schema + RLS, anonymous auth, ping pipeline, k-anonymity, Realtime | done  |
 | 3     | Venues (OSM import) and the cell / venue detail sheet                       | done  |
 | 4     | Full design pass: onboarding, settings, animation, dark mode, accessibility | done  |
-| 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       |       |
+| 5     | Retention jobs, privacy policy, store metadata, EAS build, TestFlight       | done  |
 
 ## Setup from zero
 
@@ -135,6 +143,16 @@ npx supabase functions serve --env-file supabase/functions/.env
 | Tapping a cell, list row or pin opens the detail sheet: live level, trend, usual busyness, venues  | `get_cell_detail()`, `src/components/detail/` |
 | Every 15 min the k-anonymous counts are added to hourly history                                    | `snapshot_hourly()`                           |
 | Pings deleted after 20 min; anonymous users after 25 h; history after 12 months                    | `purge_expired_pings()`, `purge_retention()`  |
+
+### Checking retention
+
+```sql
+select public.retention_status();        -- SQL editor (service role)
+```
+
+Oldest raw ping (should stay under ~21 min), anonymous identities past 25 h (should be
+0), oldest history row, and the last run of each Pulse cron job. The hourly job also
+deletes Supabase Auth audit-log rows (which contain IP addresses) older than 25 h.
 
 ### Database tests
 

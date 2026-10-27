@@ -1,50 +1,47 @@
 /**
- * In-app privacy policy (design: Privacy screen). Every statement here must
- * match what the code does; docs/privacy-policy.md is the long form and the
- * store privacy answers are derived from the same facts (Phase 5).
+ * In-app privacy policy (design: Privacy screen). The short form of
+ * docs/privacy-policy.md; both must describe exactly what the code does. The
+ * store privacy answers (docs/store-privacy.md) are derived from the same facts.
  *
- * DRAFT: controller identity and contact are placeholders until provided.
+ * Controller identity and contact are placeholders until provided (see the
+ * checklist at the top of docs/privacy-policy.md).
  */
 export const POLICY_SECTIONS: readonly { h: string; p: string }[] = [
   {
-    h: 'Collected',
-    p: 'Only while you share and the app is open: an H3 cell ID (resolution 8, an area of about 460 m), the time the server received it, and a random ID created on your phone. Nothing else: no coordinates, no device identifier, no account, no name or email.',
-  },
-  {
-    h: 'On device',
-    p: 'Your position is converted to a cell ID on your phone, then discarded. It is never transmitted or stored.',
-  },
-  {
-    h: 'Private areas',
-    p: 'You can mark places, such as home or work, that are never reported. A marked area covers roughly 250 m. The list stays on your phone and is never sent.',
-  },
-  {
-    h: 'Retention',
-    p: 'Individual reports are deleted after 20 minutes by a job that runs every minute. There is no location history of you.',
-  },
-  {
-    h: 'Aggregation',
-    p: 'The map counts different phones per cell over the last 15 minutes. Cells with fewer than five never leave the database. Counts are rounded to five.',
-  },
-  {
-    h: 'Patterns',
-    p: 'For “usually busy at”, the already-anonymous cell counts are averaged per hour and kept for 12 months. They cannot be linked to any phone.',
-  },
-  {
-    h: 'Random ID',
-    p: 'A new random ID replaces the old one every 24 hours, or when you tap Rotate. Unused IDs are deleted after 25 hours.',
-  },
-  {
-    h: 'Legal basis',
-    p: 'Your consent, Art. 6(1)(a) GDPR, given on the first screen and recorded with a timestamp and this policy version. Browsing the map needs no consent.',
-  },
-  {
-    h: 'Withdrawal',
-    p: 'Switch off sharing or tap Delete my data in Settings. Deletion is immediate and removes reports already sent, not only future ones.',
+    h: 'Looking',
+    p: 'Browsing the map needs no account and no consent. Like any app that loads data, your IP address and the map area you view reach our hosting provider (Supabase) and the map tile service (OpenFreeMap). No analytics, no ads, no tracking.',
   },
   {
     h: 'Sharing',
-    p: 'No data is sold or shared with third parties. Data is processed by our hosting provider (Supabase) under a data processing agreement.',
+    p: 'Only if you choose to share, and only while the app is open: an area ID (an H3 cell of about 460 m), a random ID made for this, and the time the server received it. Nothing else.',
+  },
+  {
+    h: 'On device',
+    p: 'Your position is turned into the area ID on your phone, then discarded. It is never sent, stored or logged.',
+  },
+  {
+    h: 'Private areas',
+    p: 'Places you mark, such as home or work (about 250 m), are never reported. The list stays on your phone.',
+  },
+  {
+    h: 'Retention',
+    p: 'Reports: 20 minutes. Random ID, its consent record and its sign-in log: replaced after 24 hours, deleted after at most 25. Hourly averages for “usually busy at”: 12 months, anonymous.',
+  },
+  {
+    h: 'Aggregation',
+    p: 'The map counts different phones per area over 15 minutes. Areas with fewer than five never leave the database. Counts are rounded to five.',
+  },
+  {
+    h: 'Legal basis',
+    p: 'Sharing: your consent, Art. 6(1)(a) GDPR, recorded with this policy version. Browsing: our legitimate interest in running the service, Art. 6(1)(f).',
+  },
+  {
+    h: 'Your rights',
+    p: 'Switch off sharing to withdraw consent; what was sent is deleted at once. Delete my data removes everything linked to your random ID. You may also ask for access, object, or complain to a data protection authority.',
+  },
+  {
+    h: 'Processors',
+    p: 'Supabase (database, EU region) under a data processing agreement. OpenFreeMap serves map tiles. Venue names © OpenStreetMap contributors. Nothing is sold or shared for advertising.',
   },
   {
     h: 'Contact',
