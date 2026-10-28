@@ -22,6 +22,7 @@ import { Toast } from '@/components/ui';
 import { DEFAULT_CITY, nearestCity, searchCities, type City } from '@/data/cities';
 import { useConsent } from '@/features/consent/consent';
 import { useDensity } from '@/features/density/useDensity';
+import { OVERVIEW_ZOOM, useOverview } from '@/features/density/useOverview';
 import type { Selection } from '@/features/detail/types';
 import { useSharing } from '@/features/sharing/sharing';
 import { useVenues, type VenuePin } from '@/features/venues/useVenues';
@@ -40,6 +41,8 @@ import { useMapStyle } from './mapStyle';
 
 const CITY_ZOOM = 12.2;
 const LOCATE_ZOOM = 12.6;
+/** Tapping a busy area in the world overview zooms in this far. */
+const AREA_ZOOM = 11.5;
 const PLACE_ZOOM = 15.6;
 
 type Bounds = [west: number, south: number, east: number, north: number];
@@ -146,12 +149,19 @@ export function MapScreen() {
   // The "me" dot marks the place the phone is at (the place's own position), only while sharing.
   const myPlace = consent.location ? sharingState.myPlace : null;
 
+  // Zoomed out to a country or the world: busy areas everywhere, one per
+  // region, instead of the single places around the centre.
+  const overview = zoom < OVERVIEW_ZOOM;
+  const areas = useOverview(overview);
+
   const filtered = useMemo(
     () =>
-      categories.length === 0
-        ? density.places
-        : density.places.filter((p) => categories.includes(p.category)),
-    [density.places, categories],
+      overview
+        ? areas
+        : categories.length === 0
+          ? density.places
+          : density.places.filter((p) => categories.includes(p.category)),
+    [overview, areas, density.places, categories],
   );
 
   const inView = useMemo(() => {
@@ -198,6 +208,8 @@ export function MapScreen() {
   const focusPlace = useCallback(
     (place: LivePlace | VenuePin) => {
       const { id, name, category, kind, lng, lat } = place;
+      // A busy area from the world overview: zoom in to its places.
+      if (id < 0) return flyTo([lng, lat], AREA_ZOOM);
       setSelection({ id, name, category, kind, lng, lat });
       flyTo([lng, lat], Math.max(zoom, PLACE_ZOOM), true);
     },
